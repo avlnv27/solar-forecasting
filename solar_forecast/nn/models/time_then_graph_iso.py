@@ -1,0 +1,80 @@
+"""
+Ground-based spatio-temporal model using GRU + GraphConv layers.
+Learns irradiance dynamics across ground stations connected by adjacency A.
+
+python -m solar_forecast.modeling.train --model ground
+
+"""
+
+from typing import Literal, Union, List
+from tsl.nn.blocks.encoders import RNN
+from tsl.nn.layers import GraphConv, DiffConv
+from tsl.utils import ensure_list
+from .prototypes import TimeThenSpace
+
+
+class TimeThenGraphIsoModel(TimeThenSpace):
+    """
+    Temporal encoder (GRU) + spatial encoder (GraphConv) for ground station data.
+    """
+
+    def __init__(self, input_size: int, horizon: int, n_nodes: int = None,
+                 output_size: int = None,
+                 exog_size: int = 0,
+                 hidden_size: int = 32,
+                 emb_size: int = 0,
+                 add_embedding_before: Union[str, List[str]] = 'encoding',
+                 use_local_weights: Union[str, List[str]] = None,
+                 time_layers: int = 1,
+                 graph_layers: int = 1,
+                 root_weight: bool = True,
+                 norm: str = 'none',
+                 add_backward: bool = False,
+                 cached: bool = False,
+                 activation: str = 'elu',
+                 noise_mode: Literal["lin", "multi", "add", "none"] = "lin",
+                 time_skip_connect: bool = False):
+        # Temporal GRU encoder
+        rnn = RNN(input_size=input_size,
+                  hidden_size=hidden_size,
+                  n_layers=time_layers,
+                  return_only_last_state=True,
+                  cell='gru')
+        self.temporal_layers = time_layers
+
+        add_embedding_before = ensure_list(add_embedding_before)
+
+        # Graph convolution layers
+        mp_kwargs = dict(root_weight=root_weight, activation=activation)
+        if add_backward:
+            assert norm == 'asym'
+            mp_conv = DiffConv
+            mp_kwargs.update(k=1, add_backward=True)
+        else:
+            mp_conv = GraphConv
+            mp_kwargs.update(norm=norm, cached=cached)
+
+        mp_layers = [
+            mp_conv(hidden_size + (emb_size if 'message_passing' in add_embedding_before else 0),
+                    hidden_size,
+                    **mp_kwargs)
+            for _ in range(graph_layers)
+        ]
+
+        # Initialize parent class
+        super(TimeThenGraphIsoModel, self).__init__(
+            input_size=input_size,
+            horizon=horizon,
+            temporal_encoder=rnn,
+            spatial_encoder=mp_layers,
+            n_nodes=n_nodes,
+            output_size=output_size,
+            exog_size=exog_size,
+            hidden_size=hidden_size,
+            emb_size=emb_size,
+            add_embedding_before=add_embedding_before,
+            use_local_weights=use_local_weights,
+            activation=activation,
+            noise_mode=noise_mode,
+            time_skip_connect=time_skip_connect
+        )

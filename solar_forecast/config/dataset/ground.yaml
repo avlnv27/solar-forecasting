@@ -1,0 +1,62 @@
+dataset:
+  name: Irradiance-Ground
+  description: "Ground-station irradiance measurements for solar forecasting."
+  frequency: "10min"
+  n_stations: 6
+  variables:
+    - irradiance
+  missing_value_strategy: "interpolate"
+
+columns:
+  raw:
+    timestamp: "reference_timestamp"
+    station: "station_abbr"
+    irradiance: "gre000z0"
+    lat: "station_coordinates_wgs84_lat"
+    lon: "station_coordinates_wgs84_lon"
+    alt: "station_height_masl"
+
+  renamed:
+    timestamp: "timestamp"
+    station: "station"
+    irradiance: "irradiance"
+    lat: "lat"
+    lon: "lon"
+    alt: "alt"
+
+# Temporal windowing (used by GNN input)
+windowing:
+  window: 24        # number of past timesteps (e.g., 4h if 10min steps)
+  horizon: 12       # forecast steps ahead (e.g., 2h)
+  stride: 1
+
+# Graph structure
+graph:
+  sigma_km: 50
+  max_dist_km: 150
+  use_dynamic_edges: false
+  lat_col: "lat"
+  lon_col: "lon"
+
+# Data scaling
+scaling:
+  method: "standardize"   # 'standardize', 'minmax', or 'none'
+  clip_range: [-5, 5]
+
+# Dataset splits
+splits:
+  train_ratio: 0.7
+  val_ratio: 0.15
+  test_ratio: 0.15
+
+# Model (GNN branch)
+model:
+  input_size: 1           # irradiance per station
+  horizon: 12             # forecast horizon
+  hidden_size: 64
+  output_size: 64
+  time_layers: 1
+  graph_layers: 2
+  norm: "none"
+  activation: "elu"
+  fusion_hidden_dim: 128

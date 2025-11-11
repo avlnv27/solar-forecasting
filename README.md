@@ -1,4 +1,10 @@
-# Solar Forecasting
+# SolarForecasting
+
+<a target="_blank" href="https://cookiecutter-data-science.drivendata.org/">
+    <img src="https://img.shields.io/badge/CCDS-Project%20template-328F97?logo=cookiecutter" />
+</a>
+
+A short description of the project.
 
 ## Project Organization
 
@@ -21,7 +27,7 @@
 │                         `1.0-jqp-initial-data-exploration`.
 │
 ├── pyproject.toml     <- Project configuration file with package metadata for 
-│                         solar_forecasting and configuration for tools like black
+│                         solar_forecast and configuration for tools like black
 │
 ├── references         <- Data dictionaries, manuals, and all other explanatory materials.
 │
@@ -33,9 +39,9 @@
 │
 ├── setup.cfg          <- Configuration file for flake8
 │
-└── solar_forecast     <- Source code for use in this project.
+└── solar_forecast   <- Source code for use in this project.
     │
-    ├── __init__.py             <- Makes solar_forecasting a Python module
+    ├── __init__.py             <- Makes solar_forecast a Python module
     │
     ├── config.py               <- Store useful variables and configuration
     │

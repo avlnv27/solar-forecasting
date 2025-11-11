@@ -4,7 +4,7 @@ from loguru import logger
 from tqdm import tqdm
 import typer
 
-from solar_forecasting.config import FIGURES_DIR, PROCESSED_DATA_DIR
+from solar_forecast.config import FIGURES_DIR, PROCESSED_DATA_DIR
 
 app = typer.Typer()
 

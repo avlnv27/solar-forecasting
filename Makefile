@@ -2,7 +2,7 @@
 # GLOBALS                                                                       #
 #################################################################################
 
-PROJECT_NAME = solar_forecasting
+PROJECT_NAME = solar-forecasting
 PYTHON_VERSION = 3.12
 PYTHON_INTERPRETER = python
 
@@ -41,20 +41,6 @@ format:
 
 
 
-## Download Data from storage system
-.PHONY: sync_data_down
-sync_data_down:
-	aws s3 sync s3://bucket-name/data/ \
-		data/ 
-	
-
-## Upload Data to storage system
-.PHONY: sync_data_up
-sync_data_up:
-	aws s3 sync data/ \
-		s3://bucket-name/data 
-	
-
 
 
 ## Set up Python interpreter environment
@@ -74,7 +60,7 @@ create_environment:
 ## Make dataset
 .PHONY: data
 data: requirements
-	$(PYTHON_INTERPRETER) solar_forecasting/dataset.py
+	$(PYTHON_INTERPRETER) solar_forecast/dataset.py
 
 
 #################################################################################

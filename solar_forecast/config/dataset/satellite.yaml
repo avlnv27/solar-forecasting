@@ -1,0 +1,46 @@
+dataset:
+  name: Irradiance-Satellite
+  description: "Surface solar irradiance (SIS) from CM SAF satellite observations."
+  spatial_resolution: 0.05  # degrees
+  frequency: "5min"
+
+structure:
+  dimensions: [time, lat, lon]
+  coordinates:
+    lat: "latitude"
+    lon: "longitude"
+    time: "timestamp"
+  data_variable: "SIS"
+
+output:
+  format: "matrix"
+  columns:
+    time_index: "time"
+    spatial_index: ["lat", "lon"]
+    value: "SIS"
+
+# ------------------------------------------------------------------
+# Preprocessing
+# ------------------------------------------------------------------
+preprocessing:
+  subset_region:
+    enabled: true
+    lat_range: [45.7, 47.9]
+    lon_range: [5.8, 10.6]
+  subset_station:
+    coord: [46.512283, 6.667517, 456.0]  # PUY station
+    size: 11    # 11x11 pixel subset around the station
+
+# ------------------------------------------------------------------
+# Scaling
+# ------------------------------------------------------------------
+scaling:
+  method: "minmax"
+  range: [0, 1]
+
+# ------------------------------------------------------------------
+# Model (CNN branch)
+# ------------------------------------------------------------------
+model:
+  input_channels: 104   # 8×13 channels
+  feature_dim: 128
