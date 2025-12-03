@@ -2,7 +2,6 @@ dataset:
   name: Irradiance-Ground
   description: "Ground-station irradiance measurements for solar forecasting."
   frequency: "10min"
-  n_stations: 6
   variables:
     - irradiance
   missing_value_strategy: "interpolate"
@@ -24,35 +23,39 @@ columns:
     lon: "lon"
     alt: "alt"
 
-# Temporal windowing (used by GNN input)
+# MeteoSwiss data sources
+sources:
+  meta_url: "https://data.geo.admin.ch/ch.meteoschweiz.ogd-smn/ogd-smn_meta_stations.csv"
+  station_url_template: "https://data.geo.admin.ch/ch.meteoschweiz.ogd-smn/{station_lower}/ogd-smn_{station_lower}_t_historical_2020-2029.csv"
+  stations: ["BIE", "PUY", "VEV", "ORO", "MLS", "MAH"]
+
+# Temporal windowing for model input/output
 windowing:
-  window: 24        # number of past timesteps (e.g., 4h if 10min steps)
-  horizon: 12       # forecast steps ahead (e.g., 2h)
+  window: 18        # input length (3h → 18 steps of 10min)
+  horizon: 6        # prediction length (1h → 6 steps of 10min)
   stride: 1
 
-# Graph structure
+# Graph structure for spatial learning
 graph:
   sigma_km: 50
   max_dist_km: 150
   use_dynamic_edges: false
-  lat_col: "lat"
-  lon_col: "lon"
 
-# Data scaling
+# Data scaling / normalization
 scaling:
-  method: "standardize"   # 'standardize', 'minmax', or 'none'
+  method: "standardize"
   clip_range: [-5, 5]
 
-# Dataset splits
+# Dataset splits for ML training
 splits:
   train_ratio: 0.7
   val_ratio: 0.15
   test_ratio: 0.15
 
-# Model (GNN branch)
+# GNN / temporal encoder
 model:
-  input_size: 1           # irradiance per station
-  horizon: 12             # forecast horizon
+  input_size: 6
+  horizon: 6
   hidden_size: 64
   output_size: 64
   time_layers: 1
@@ -60,3 +63,9 @@ model:
   norm: "none"
   activation: "elu"
   fusion_hidden_dim: 128
+
+# Preprocessing output directories
+paths:
+  raw_dir: "data/raw/ground"
+  interim_dir: "data/interim/ground"
+  processed_dir: "data/processed/ground"

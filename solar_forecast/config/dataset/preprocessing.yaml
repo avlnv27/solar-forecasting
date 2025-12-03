@@ -1,10 +1,83 @@
-# config/preprocessing.yaml
 date_range:
   start: "2023-01-01 00:00:00"
   end: "2023-01-31 23:59:59"
 
-frequency: "10min"   # fréquence finale à imposer pour resampling
+frequency: "10min"             # Resampling frequency of both datasets
 
-windows:
-  past_timesteps: 12      # e.g. 12 * 10min = 2h
-  future_timesteps: 24    # e.g. 24 * 10min = 4h
+past_timesteps: 18              # Input window = 3h = 18 × 10min
+future_timesteps: 6             # Prediction horizon = 6 × 10min = 1h
+
+batch_size: 10                 # Batch size for training
+
+model:
+
+  ############################################################
+  # GROUND MODEL (TimeThenGraphIsoModel)
+  ############################################################
+  ground:
+    name: "TimeThenGraphIsoModel"
+
+    nodes: 24                    # Number of ground stations
+
+    coords:
+      - [46.00, 6.90]
+      - [46.10, 6.85]
+      - [46.15, 6.95]
+      - [46.05, 6.80]
+      - [46.20, 6.88]
+      - [46.12, 6.83]
+
+    knn: 3
+    sigma: 20
+
+    # Input/Output
+    input_size: 1               # irradiance only
+    hidden_size: 32             # GRU hidden size
+    output_size: 32             # output embedding dim of GNN branch
+
+    # Temporal GRU
+    time_layers: 1
+    time_skip_connect: false
+
+    # GraphConv parameters
+    graph_layers: 1
+    root_weight: true
+    norm: "none"                # "none", "batchnorm", "layernorm", "asym"
+    add_backward: false         # reverse edges (DiffConv)
+    cached: false               # caching adjacency
+
+    # Embeddings / advanced features
+    emb_size: 0
+    add_embedding_before: []    # options: "encoding", "message_passing", "decoding"
+    use_local_weights: null     # options: "encoder", "decoder"
+    exog_size: 0                # no external covariates
+
+    # Misc
+    activation: "elu"
+    noise_mode: "lin"          # override TSL weird behavior
+
+
+  ############################################################
+  # SATELLITE MODEL (SatelliteCNN)
+  ############################################################
+  satellite:
+    name: "SatelliteCNN"
+
+    # Channels = (#variables × past_timesteps)
+    input_channels: 18          # 1 variable × 18 past frames,
+    
+    feature_dim: 128            # CNN output embedding
+
+    # CNN layers
+    conv1_channels: 64
+    conv2_channels: 128         # also used for attention dim
+    kernel_size: 3
+    pool_size: 2
+
+
+  ############################################################
+  # FUSION LAYER
+  ############################################################
+  fusion:
+    name: "FusionModel"
+    hidden_dim: 128             # hidden MLP size

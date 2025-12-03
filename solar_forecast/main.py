@@ -5,9 +5,13 @@ import typer
 import yaml
 import torch
 
-# Local imports
-from solar_forecast.datasets.ground_preprocessing import GroundPreprocessor
-from solar_forecast.datasets.satellite_preprocessing import SatellitePreprocessor
+# ---- Correct imports ----
+from solar_forecast.nn.utils import (
+    GroundPreprocessor,
+    SatellitePreprocessor,
+    ForecastDataset,
+    make_dataloader,
+)
 from solar_forecast.config.paths import (
     INTERIM_DATA_DIR, PROCESSED_DATA_DIR,
     GROUND_DATASET_CONFIG, SATELLITE_DATASET_CONFIG,
@@ -21,82 +25,135 @@ app = typer.Typer()
 
 @app.command()
 def main():
-    logger.info("Running full preprocessing pipeline (ground + satellite)")
+    logger.info("Running full preprocessing + dataset + model test")
 
-    # ------------------------------------------------------------------
-    # Load configs
-    # ------------------------------------------------------------------
+    # ---------------- CONFIG LOADING ----------------
     with open(PREPROCESSING_DATASET_CONFIG) as f:
         pp_cfg = yaml.safe_load(f)
-    with open(GROUND_DATASET_CONFIG) as f:
-        ground_cfg = yaml.safe_load(f)
-    with open(SATELLITE_DATASET_CONFIG) as f:
-        sat_cfg = yaml.safe_load(f)
 
-    start, end = pp_cfg["date_range"]["start"], pp_cfg["date_range"]["end"]
-    freq = pd.to_timedelta(pp_cfg.get("frequency", "10min"))
+    past_steps = pp_cfg["past_timesteps"]
+    future_steps = pp_cfg["future_timesteps"]
 
-    # Ground data
-    gproc = GroundPreprocessor(
-        cfg_path=GROUND_DATASET_CONFIG,
-        raw_dir=RAW_DATA_DIR / "ground",
-        interim_dir=INTERIM_DATA_DIR / "ground",
-        processed_dir=PROCESSED_DATA_DIR / "ground",
-    )
+    start = pp_cfg["date_range"]["start"]
+    end = pp_cfg["date_range"]["end"]
+    freq = pd.to_timedelta(pp_cfg["frequency"])
+
+    # ---------------- GROUND PREPROCESSING ----------------
+    gproc = GroundPreprocessor(cfg_path=GROUND_DATASET_CONFIG)
 
     gdf = gproc.load_and_merge()
     gdf = gdf.resample(freq).interpolate().ffill().bfill()
     gdf = gdf.loc[start:end]
-    logger.info(f"Ground data resampled to {freq}, range {start}–{end}")
-    print(gdf.head())
 
-    # Satellite data
+    logger.success(f"Ground data: {gdf.shape}")
+
+    # ---------------- GRAPH BUILD ----------------
+    logger.info("Building spatial graph from stations...")
+
+    edge_index, edge_weight, coords = gproc.build_graph()
+
+    # Put graph tensors on consistent dtypes
+    edge_index = edge_index.to(torch.long)
+    edge_weight = edge_weight.to(torch.float32)
+
+    logger.success(
+        f"Graph built → edge_index={tuple(edge_index.shape)}, "
+        f"edge_weight={tuple(edge_weight.shape)}"
+    )
+
+    # ---------------- SATELLITE PREPROCESS ----------------
     sproc = SatellitePreprocessor(
         cfg_path=SATELLITE_DATASET_CONFIG,
         raw_dir=RAW_DATA_DIR / "satellite",
         interim_dir=INTERIM_DATA_DIR / "satellite",
         processed_dir=PROCESSED_DATA_DIR / "satellite",
     )
-    sdf = sproc.redownload_csv()
-    sdf = sproc.pivot_to_matrix(sdf)
-    sdf = sdf.resample(freq).interpolate().ffill().bfill()
-    sdf = sdf.loc[start:end]
-    logger.info(f"Ground data resampled to {freq}, range {start}–{end}")
-    print(sdf.head())
 
-    # Align indices
-    if not gdf.index.equals(sdf.index):
-        common_index = gdf.index.intersection(sdf.index)
-        gdf, sdf = gdf.loc[common_index], sdf.loc[common_index]
-        logger.warning(f"Ground & satellite time indices misaligned — trimmed to {len(common_index)} samples.")
+    sdf = pd.read_csv(sproc.interim_dir / "satellite_irradiance.csv")
+    sdf["time"] = pd.to_datetime(sdf["time"])
 
-    logger.success("All data processed and aligned at 10min frequency — ready for SpatioTemporalDataset!")
-
-    # Convert to tensors
-    # Ground → (B, T, N, F)
-    X_ground = torch.tensor(gdf.values, dtype=torch.float32).unsqueeze(0).unsqueeze(-1)
-    logger.info(f"Ground tensor shape: {tuple(X_ground.shape)}")
-
-    # Satellite → (B, C, H, W)
-    side = int(len(sdf.columns) ** 0.5)
-    # Take the mean image over time (you can also pick sdf.iloc[0] for one frame)
-    X_sat = torch.tensor(sdf.mean(axis=0).values, dtype=torch.float32).view(1, 1, side, side)
-    logger.info(f"Satellite tensor shape: {tuple(X_sat.shape)}")
-
-    # Fusion model
-    model = FusionModel(
-        cfg_sat=sat_cfg["model"],
-        cfg_ground=ground_cfg["model"],
-        n_ground_nodes=gdf.shape[1],
-        A_ground=None
+    sdf = (
+        sdf.set_index("time")
+        .groupby(["lat", "lon"])
+        .resample(freq).mean()
+        .interpolate()
+        .ffill().bfill()
     )
 
-    # # ------------------------------------------------------------------
-    # # Forward pass test
-    # # ------------------------------------------------------------------
-    # with torch.no_grad():
-    #     y_pred = model(X_sat, X_ground)
-    #     logger.success(f"✅ Forward pass OK — output shape: {tuple(y_pred.shape)}")
+    sdf.index = sdf.index.set_names(["lat_level", "lon_level", "time"])
+    sdf = sdf.reset_index()
+    sdf = sdf.drop(columns=["lat_level", "lon_level"])
+
+    sdf = sdf[(sdf["time"] >= start) & (sdf["time"] <= end)]
+
+    # ---- ALIGN GROUND & SATELLITE ----
+    if not gdf.index.equals(sdf["time"]):
+        logger.warning("Aligning timestamps...")
+        common_idx = gdf.index.intersection(sdf["time"])
+        gdf = gdf.loc[common_idx]
+        sdf = sdf[sdf["time"].isin(common_idx)]
+        logger.warning(f"Trimmed to {len(common_idx)} samples")
+
+    logger.success("Ground & satellite aligned.")
+
+    # ---------------- SATELLITE TENSOR ----------------
+    sat_tensor = sproc.pivot_to_tensor(sdf)
+    logger.success(f"Satellite tensor: {sat_tensor.shape}")
+
+    # ---------------- GROUND TENSOR ----------------
+    # ---- Ground tensor (T, N, 1) → expected by ForecastDataset ----
+    ground_tensor = torch.tensor(gdf.values, dtype=torch.float32)
+    # shape now: (T, N, 1)
+
+    # ---- Target tensor (T,) ----
+    target_tensor = torch.tensor(gdf.iloc[:, 0].values, dtype=torch.float32)
+
+    logger.info(f"Ground tensor: {ground_tensor.shape}")
+    logger.info(f"Target tensor: {target_tensor.shape}")
+
+    # ---------------- DATASET + DATALOADER ----------------
+    loader = make_dataloader(
+        sat_data=sat_tensor,
+        ground_data=ground_tensor,
+        target_data=target_tensor,
+        cfg=pp_cfg,
+        batch_size=pp_cfg["batch_size"],
+        shuffle=True
+    )
+
+    batch = next(iter(loader))
+
+    logger.info(f"Batch satellite: {batch['satellite'].shape}")
+    logger.info(f"Batch ground:    {batch['ground'].shape}")
+    logger.info(f"Batch target:    {batch['target'].shape}")
+
+    # ---------------- MODEL INSTANTIATION ----------------
+    logger.info("Instantiating FusionModel with static graph...")
+
+    model = FusionModel(
+        cfg=pp_cfg,
+        cfg_sat=pp_cfg["model"]["satellite"],
+        cfg_ground=pp_cfg["model"]["ground"],
+        cfg_fusion=pp_cfg["model"]["fusion"],
+        A_ground=(edge_index, edge_weight),   # PASS THE GRAPH HERE
+    )
+
+    # ---------------- TEST FORWARD PASS ----------------
+    with torch.no_grad():
+        y_pred = model(
+            batch["satellite"],
+            batch["ground"],
+            edge_index=edge_index,
+            edge_weight=edge_weight,
+        )
+        # print(y_pred.shape)
+
+    logger.info(f"Batch satellite: {y_pred.size()}")
+    logger.info(f"Batch satellite: {y_pred}")
+
+
+    # logger.success(f"Forward OK — output shape: {tuple(y_pred.shape)}")
+
 
 
 if __name__ == "__main__":

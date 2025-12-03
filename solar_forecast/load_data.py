@@ -22,12 +22,7 @@ def main():
     logger.info("Preprocessing ground + satellite data")
 
     # Ground data
-    gproc = GroundPreprocessor(
-        cfg_path=GROUND_DATASET_CONFIG,
-        raw_dir=RAW_DATA_DIR / "ground",
-        interim_dir=INTERIM_DATA_DIR / "ground",
-        processed_dir=PROCESSED_DATA_DIR / "ground",
-    )
+    gproc = GroundPreprocessor(cfg_path=GROUND_DATASET_CONFIG)
 
     stations_meta = gproc.load_station_metadata()
     raw_paths = gproc.download_all_stations()
