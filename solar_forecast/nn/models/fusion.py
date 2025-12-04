@@ -5,9 +5,6 @@ from solar_forecast.nn.models.satellite_cnn import SatelliteCNN
 from solar_forecast.nn.models.time_then_graph_iso import TimeThenGraphIsoModel
 
 
-# --------------------------------------------------------------------
-# AJOUT : Attention pooling TRÈS SIMPLE sur les noeuds (N -> 1 vecteur)
-# --------------------------------------------------------------------
 class GraphAttentionPooling(nn.Module):
     def __init__(self, d_in, d_att=32):
         super().__init__()
@@ -15,27 +12,27 @@ class GraphAttentionPooling(nn.Module):
         self.v = nn.Linear(d_att, 1)
 
     def forward(self, x):
-        # x: (B, N, d_in)
-        h = torch.tanh(self.W(x))         # (B, N, d_att)
-        e = self.v(h)                     # (B, N, 1)
-        α = torch.softmax(e, dim=1)       # (B, N, 1)
-        return (α * x).sum(dim=1)         # (B, d_in)
-
+        """
+        x: (B, N, d_in)
+        """
+        h = torch.tanh(self.W(x))      # (B, N, d_att)
+        e = self.v(h)                  # (B, N, 1)
+        alpha = torch.softmax(e, dim=1)  # (B, N, 1)
+        return (alpha * x).sum(dim=1)  # (B, d_in)
 
 
 class FusionModel(nn.Module):
     """
-    Combines a Satellite CNN encoder and a Ground GNN encoder
+    Combines SatelliteCNN and TimeThenGraphIsoModel
     using a fusion MLP for final irradiance forecast.
 
-    Every argument is forwarded from YAML → FusionModel → Ground model.
     """
     def __init__(self, cfg, cfg_sat, cfg_ground, cfg_fusion, A_ground=None):
         super().__init__()
 
         self.horizon = cfg["future_timesteps"]
 
-        # SATELLITE 
+        # SATELLITE ENCODER 
         self.sat_encoder = SatelliteCNN(
             input_channels=cfg_sat["input_channels"],
             conv1_channels=cfg_sat["conv1_channels"],
@@ -45,7 +42,7 @@ class FusionModel(nn.Module):
             feature_dim=cfg_sat["feature_dim"],
         )
 
-        # GROUND 
+        # GROUND ENCODER (Time-Then-Graph)
         self.ground_encoder = TimeThenGraphIsoModel(
             input_size=cfg_ground["input_size"],
             horizon=cfg["future_timesteps"],
@@ -74,10 +71,10 @@ class FusionModel(nn.Module):
             exog_size=0,
         )
 
-        # attention pooling to reduce (B, N, d_out) to (B, d_out)
+        # Attention pooling on ground nodes to get 1 node 
         self.node_pool = GraphAttentionPooling(d_in=cfg_ground["output_size"])
 
-        # ----------------- FUSION MLP HEAD -----------------
+        # FUSION 
         d_sat = cfg_sat["feature_dim"]
         d_gnn = cfg_ground["output_size"]
         fusion_input_dim = d_sat + d_gnn
@@ -95,40 +92,41 @@ class FusionModel(nn.Module):
             nn.ReLU(),
             nn.Dropout(dropout_p),
 
-            # sortie: un vecteur de taille = horizon (multi-step)
-            nn.Linear(hidden2, self.horizon)
+            nn.Linear(hidden2, self.horizon),  # (B, horizon)
         )
-
-        # Option pour forcer l'irradiance >= 0
-        self.out_activation = nn.ReLU()
 
         self.A_ground = A_ground
 
     def forward(self, x_sat, x_ground, edge_index=None, edge_weight=None):
-
+        # Get graph structure if not provided
         if edge_index is None:
+            if self.A_ground is None:
+                raise ValueError("Either edge_index must be provided in forward "
+                                 "or A_ground must be set in the model.")
             edge_index, edge_weight = self.A_ground
 
-        # 1) features satellite: (B, d_sat)
+        # Satellite features (B, d_sat)
         sat_feat = self.sat_encoder(x_sat)
 
-        # 2) features sol (GNN): typiquement (B, H, N, d_gnn)
+        # Ground features 
         ground_feat = self.ground_encoder(
             x_ground,
             edge_index=edge_index,
-            edge_weight=edge_weight
+            edge_weight=edge_weight,
         )
+        
+        # (B, H, N, d_gnn) -> take last horizon horizon
+        if ground_feat.dim() == 4:
+            ground_last = ground_feat[:, -1]      # (B, N, d_gnn)
+        elif ground_feat.dim() == 3:
+            ground_last = ground_feat # (B, N, d_gnn)
+        else:
+            raise RuntimeError(f"Unexpected ground_feat shape: {ground_feat.shape}")
 
-        # 3) pooling sur les nodes (et, si besoin, on a déjà pris le dernier H)
-        local_feat = self.node_pool(ground_feat)  # (B, d_gnn)
+        # Pooling nodes (B, d_gnn)
+        local_feat = self.node_pool(ground_last)
 
-        # 4) concat features
         fusion_in = torch.cat([sat_feat, local_feat], dim=-1)  # (B, d_sat + d_gnn)
-
-        # 5) MLP pour prédire l'irradiance future
-        y = self.mlp(fusion_in)       # (B, horizon)
-
-        # 6) clamp pour éviter des valeurs négatives (optionnel mais pratique)
-        y = self.out_activation(y)    # (B, horizon), >= 0
+        y = self.mlp(fusion_in)        # (B, horizon)
 
         return y

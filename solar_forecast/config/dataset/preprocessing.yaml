@@ -11,9 +11,7 @@ batch_size: 10                 # Batch size for training
 
 model:
 
-  ############################################################
   # GROUND MODEL (TimeThenGraphIsoModel)
-  ############################################################
   ground:
     name: "TimeThenGraphIsoModel"
 
@@ -57,9 +55,7 @@ model:
     noise_mode: "lin"          # override TSL weird behavior
 
 
-  ############################################################
   # SATELLITE MODEL (SatelliteCNN)
-  ############################################################
   satellite:
     name: "SatelliteCNN"
 
@@ -75,9 +71,7 @@ model:
     pool_size: 2
 
 
-  ############################################################
   # FUSION LAYER
-  ############################################################
   fusion:
     name: "FusionModel"
     hidden_dim: 128             # hidden MLP size
