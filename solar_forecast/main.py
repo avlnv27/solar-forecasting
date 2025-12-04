@@ -21,6 +21,15 @@ from solar_forecast.config.paths import (
 )
 from solar_forecast.nn.models.fusion import FusionModel
 
+"""
+Run like this to test training:
+python -m solar_forecast.main train-fusion \
+  --epochs 50 \
+  --batch-size 32 \
+  --lr 1e-3 \
+  --val-ratio 0.2
+  
+  """
 
 app = typer.Typer(help="Preprocessing, debug forward and training for FusionModel.")
 
