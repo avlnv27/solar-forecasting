@@ -67,17 +67,17 @@ model:
 
     # NEW: Temporal encoder settings
     use_temporal_encoder: true   # Set to false to use old behavior (T as channels)
-    temporal_layers: 2           # Number of GRU layers for temporal encoding
+    temporal_layers: 1           # Number of GRU layers for temporal encoding
     
     # CNN layers
     # Note: input_channels is now 1 when use_temporal_encoder=true
     # (processes one image at a time, not all timesteps as channels)
     input_channels: 1            # CHANGED from 18 to 1
     
-    feature_dim: 128            # CNN output embedding
+    feature_dim: 64            # CNN output embedding
 
-    conv1_channels: 64
-    conv2_channels: 128         # also used for attention dim
+    conv1_channels: 32
+    conv2_channels: 64         # also used for attention dim
     kernel_size: 3
     pool_size: 2
     
@@ -90,4 +90,4 @@ model:
     name: "FusionModel"
     hidden_dim: 128             # hidden MLP size
     hidden_dim2: 128            # second hidden layer (optional)
-    dropout: 0.1                # dropout probability
+    dropout: 0.3                # dropout probability

@@ -10,4 +10,4 @@
 
 echo "=== Fusion ==="
 python -m solar_forecast.train train-fusion \
-  --epochs 500 --batch-size 64 --lr 1e-3 --val-ratio 0.2
+  --epochs 500 --batch-size 64 --lr 5e-4 --val-ratio 0.2
