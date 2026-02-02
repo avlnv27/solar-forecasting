@@ -2,13 +2,13 @@ dataset:
   name: Irradiance-Ground
   description: "Ground-station irradiance measurements for solar forecasting."
   frequency: "10min"
-  variables:
-    - irradiance
-  missing_value_strategy: "interpolate"
+  timezone: "UTC"
+  # variables: ["irradiance"]
+  # missing_value_strategy: "interpolate"
 
 columns:
   raw:
-    timestamp: "reference_timestamp"
+    timestamp: "reference_timestamp"          
     station: "station_abbr"
     irradiance: "gre000z0"
     lat: "station_coordinates_wgs84_lat"
@@ -16,55 +16,43 @@ columns:
     alt: "station_height_masl"
 
   renamed:
-    timestamp: "timestamp"
+    timestamp: "time"                         
     station: "station"
     irradiance: "irradiance"
     lat: "lat"
     lon: "lon"
     alt: "alt"
 
-# MeteoSwiss data sources
 sources:
   meta_url: "https://data.geo.admin.ch/ch.meteoschweiz.ogd-smn/ogd-smn_meta_stations.csv"
   station_url_template: "https://data.geo.admin.ch/ch.meteoschweiz.ogd-smn/{station_lower}/ogd-smn_{station_lower}_t_historical_2020-2029.csv"
   stations: ["BIE", "PUY", "VEV", "ORO", "MLS", "MAH"]
 
-# Temporal windowing for model input/output
-windowing:
-  window: 18        # input length (3h → 18 steps of 10min)
-  horizon: 6        # prediction length (1h → 6 steps of 10min)
-  stride: 1
+csi:
+  observed: "irradiance"           
+  ghi_clear: "ghi_clear"
+  csi: "irradiance_csi"
 
-# Graph structure for spatial learning
+  ghi_clear_min: 20.0
+  clip_max: 2.0
+  fillna: 0.0
+  model: "ineichen"
+
+# windowing:
+#   window: 18
+#   horizon: 6
+#   stride: 1
+
 graph:
   sigma_km: 50
   max_dist_km: 150
-  use_dynamic_edges: false
+  # use_dynamic_edges: false
 
-# Data scaling / normalization
-scaling:
-  method: "standardize"
-  clip_range: [-5, 5]
+# splits:
+#   train_ratio: 0.7
+#   val_ratio: 0.15
+#   test_ratio: 0.15
 
-# Dataset splits for ML training
-splits:
-  train_ratio: 0.7
-  val_ratio: 0.15
-  test_ratio: 0.15
-
-# GNN / temporal encoder
-model:
-  input_size: 6
-  horizon: 6
-  hidden_size: 64
-  output_size: 64
-  time_layers: 1
-  graph_layers: 2
-  norm: "none"
-  activation: "elu"
-  fusion_hidden_dim: 128
-
-# Preprocessing output directories
 paths:
   raw_dir: "data/raw/ground"
   interim_dir: "data/interim/ground"

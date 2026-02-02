@@ -9,6 +9,12 @@ future_timesteps: 6             # Prediction horizon = 6 × 10min = 1h
 
 batch_size: 10                 # Batch size for training
 
+data:
+  ground_value_col: "irradiance_csi"      
+  target_station: null                   # null = first station in merged order
+  sat_value_col: "irradiance_csi"                   # set to your satellite CSI column name
+  sat_time_col: "time"
+
 model:
 
   # GROUND MODEL (TimeThenGraphIsoModel)

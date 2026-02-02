@@ -1,46 +1,53 @@
 dataset:
   name: Irradiance-Satellite
   description: "Surface solar irradiance (SIS) from CM SAF satellite observations."
-  spatial_resolution: 0.05  # degrees
-  frequency: "5min"
+  # spatial_resolution: 0.05  # degrees
+  frequency: "30min"
+  timezone: "UTC"  
 
 structure:
-  dimensions: [time, lat, lon]
   coordinates:
-    lat: "latitude"
-    lon: "longitude"
-    time: "timestamp"
+    timestamp: "time"
+    lat: "lat"
+    lon: "lon"
+
   data_variable: "SIS"
 
-output:
-  format: "matrix"
-  columns:
-    time_index: "time"
-    spatial_index: ["lat", "lon"]
-    value: "SIS"
+columns:
+  raw:
+    timestamp: "time"        
+    lat: "lat"
+    lon: "lon"
+    value: "SIS"        
+  renamed:
+    timestamp: "time"       
+    lat: "lat"
+    lon: "lon"
+    irradiance: "irradiance"  
 
-# ------------------------------------------------------------------
-# Preprocessing
-# ------------------------------------------------------------------
 preprocessing:
   subset_region:
     enabled: true
     lat_range: [45.7, 47.9]
     lon_range: [5.8, 10.6]
   subset_station:
-    coord: [46.512283, 6.667517, 456.0]  # PUY station
-    size: 11    # 11x11 pixel subset around the station
+    coord: [46.512283, 6.667517, 456.0]  # PUY station (WGS84)
+    size: 11
 
-# ------------------------------------------------------------------
-# Scaling
-# ------------------------------------------------------------------
-scaling:
-  method: "minmax"
-  range: [0, 1]
+csi:
+  observed: "irradiance"
+  ghi_clear: "ghi_clear"
+  csi: "irradiance_csi"
 
-# ------------------------------------------------------------------
-# Model (CNN branch)
-# ------------------------------------------------------------------
-model:
-  input_channels: 104   # 8×13 channels
-  feature_dim: 128
+  ghi_clear_min: 20.0
+  clip_max: 2.0
+  fillna: 0.0
+  model: "ineichen"
+
+# scaling:
+#   method: "minmax"
+#   range: [0, 1]
+
+# model:
+#   input_channels: 104
+#   feature_dim: 128
