@@ -462,6 +462,7 @@ def train_fusion(
     max_grad_norm: float = typer.Option(1.0, help="Maximum gradient norm for clipping."),
     lr_patience: int = typer.Option(5, help="Patience for ReduceLROnPlateau scheduler."),
     lr_factor: float = typer.Option(0.5, help="Factor to reduce LR by."),
+    huber_delta: float = typer.Option(1.0, help="Delta parameter for Huber loss (threshold for quadratic to linear transition)."),
     ckpt_path: Path = typer.Option(
         PROCESSED_DATA_DIR / "checkpoints" / "fusion_best.pt",
         help="Path where to save the best model checkpoint.",
@@ -472,6 +473,7 @@ def train_fusion(
     Uses CLEANED processed data + same-day windowing.
     
     IMPROVEMENTS:
+    - Huber loss (robust to outliers)
     - Gradient clipping
     - Learning rate scheduling (ReduceLROnPlateau)
     - Early stopping
@@ -547,7 +549,7 @@ def train_fusion(
         A_ground=(edge_index, edge_weight),
     ).to(device)
 
-    criterion = nn.MSELoss()
+    criterion = nn.HuberLoss(delta=huber_delta)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
     
     # LEARNING RATE SCHEDULER
@@ -562,6 +564,7 @@ def train_fusion(
 
     logger.info("=" * 60)
     logger.info("TRAINING CONFIGURATION:")
+    logger.info(f"Loss function: Huber loss (delta={huber_delta})")
     logger.info(f"Initial LR: {lr}")
     logger.info(f"Weight decay: {weight_decay}")
     logger.info(f"Max grad norm: {max_grad_norm}")
@@ -600,12 +603,13 @@ def train_satellite(
     max_grad_norm: float = typer.Option(1.0),
     lr_patience: int = typer.Option(5),
     lr_factor: float = typer.Option(0.5),
+    huber_delta: float = typer.Option(1.0),
     ckpt_path: Path = typer.Option(
         PROCESSED_DATA_DIR / "checkpoints" / "satellite_only_best.pt"
     ),
 ):
     """
-    Train satellite-only CNN baseline with improved training loop.
+    Train satellite-only CNN baseline with Huber loss and improved training loop.
     """
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logger.info(f"[SAT] Using device: {device}")
@@ -654,7 +658,7 @@ def train_satellite(
         cfg_sat=cfg["model"]["satellite"],
     ).to(device)
 
-    criterion = nn.MSELoss()
+    criterion = nn.HuberLoss(delta=huber_delta)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
     
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
@@ -692,12 +696,13 @@ def train_ground(
     max_grad_norm: float = typer.Option(1.0),
     lr_patience: int = typer.Option(5),
     lr_factor: float = typer.Option(0.5),
+    huber_delta: float = typer.Option(1.0),
     ckpt_path: Path = typer.Option(
         PROCESSED_DATA_DIR / "checkpoints" / "ground_only_best.pt"
     ),
 ):
     """
-    Train ground-only GNN baseline with improved training loop.
+    Train ground-only GNN baseline with Huber loss and improved training loop.
     """
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logger.info(f"[GNN] Using device: {device}")
@@ -750,7 +755,7 @@ def train_ground(
         A_ground=(edge_index, edge_weight),
     ).to(device)
 
-    criterion = nn.MSELoss()
+    criterion = nn.HuberLoss(delta=huber_delta)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
     
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(

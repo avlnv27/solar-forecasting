@@ -49,7 +49,8 @@ class SatelliteOnlyModel(nn.Module):
         self.head = nn.Sequential(
             nn.Linear(cfg_sat["feature_dim"], head_hidden),
             nn.ReLU(),
-            nn.Dropout(0.1),
+            nn.Dropout(0.3),  # INCREASED from 0.1 to 0.3
+            nn.BatchNorm1d(head_hidden),  # ADDED: BatchNorm
             nn.Linear(head_hidden, self.horizon)
         )
 

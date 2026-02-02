@@ -86,7 +86,7 @@ def _cfg_get(cfg: dict, path: Iterable[str], default=None):
 
 
 # ---------------------------------------------------------------------
-# Clear-sky GHI and CSI (pvlib)
+# Gets Clear-sky GHI to process irradiances as CSI (pvlib)
 # ---------------------------------------------------------------------
 class ClearSkyIndexLoader:
     """
@@ -159,7 +159,7 @@ class ClearSkyIndexLoader:
 
 
 # ---------------------------------------------------------------------
-# Ground preprocessing (uses ground YAML)
+# Ground preprocessing 
 # ---------------------------------------------------------------------
 class GroundPreprocessor:
     class Columns:
@@ -203,9 +203,8 @@ class GroundPreprocessor:
         self.station_url_tpl = src.get("station_url_template")
         self.test_stations = src.get("stations", [])
 
-        # CSI config (no hardcoded names)
         self.csi_cfg = self.cfg.get("csi", {})
-        # expected keys: observed, ghi_clear, csi, ghi_clear_min, clip_max, fillna, model
+        # observed, ghi_clear, csi, ghi_clear_min, clip_max, fillna, model
         self.csi_obs_col = self.csi_cfg.get("observed", self.cols.r_irradiance)
         self.csi_clear_col = self.csi_cfg.get("ghi_clear", "ghi_clear")
         self.csi_col = self.csi_cfg.get("csi", f"{self.csi_obs_col}_csi")
@@ -540,7 +539,7 @@ class GroundPreprocessor:
 
 
 # ---------------------------------------------------------------------
-# Satellite preprocessing (uses satellite YAML) - with CSI cols from YAML
+# Satellite preprocessing 
 # ---------------------------------------------------------------------
 class SatellitePreprocessor:
     def __init__(self, cfg_path: Path, raw_dir: Path, interim_dir: Path, processed_dir: Path):
@@ -616,7 +615,7 @@ class SatellitePreprocessor:
             self.raw_cols["timestamp"]: self.col_time,
             self.raw_cols["lat"]: self.col_lat,
             self.raw_cols["lon"]: self.col_lon,
-            self.raw_cols["value"]: self.col_irr,  # ✅ SIS -> irradiance
+            self.raw_cols["value"]: self.col_irr, 
         }
         df = df.rename(columns=rename_map)
 
@@ -943,7 +942,7 @@ def make_dataloader(
     timestamps,
     cfg,
     batch_size=32,
-    shuffle=True,
+    shuffle=False,
 ):
     past_steps = cfg["past_timesteps"]
     future_steps = cfg["future_timesteps"]

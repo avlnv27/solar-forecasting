@@ -26,8 +26,11 @@ class FusionModel(nn.Module):
     Combines SatelliteCNN and TimeThenGraphIsoModel
     using a fusion MLP for final irradiance forecast.
     
-    IMPROVED VERSION: Adds temporal encoder (GRU) for satellite branch
-    to match the temporal modeling capability of the ground branch.
+    PAPER-INSPIRED VERSION:
+    - Simpler MLP architecture (3 dense layers like the paper)
+    - Varied activations (ReLU, GeLU, SELU options)
+    - L2 regularization via weight_decay
+    - Compatible with Huber loss
     """
     def __init__(self, cfg, cfg_sat, cfg_ground, cfg_fusion, A_ground=None):
         super().__init__()
@@ -39,8 +42,6 @@ class FusionModel(nn.Module):
         self.use_sat_temporal = cfg_sat.get("use_temporal_encoder", True)
 
         # SATELLITE SPATIAL ENCODER 
-        # Changed: input_channels = 1 (process one image at a time)
-        # instead of input_channels = past_timesteps (treating time as channels)
         sat_input_channels = 1 if self.use_sat_temporal else cfg_sat["input_channels"]
         
         self.sat_spatial_encoder = SatelliteCNN(
@@ -52,17 +53,17 @@ class FusionModel(nn.Module):
             feature_dim=cfg_sat["feature_dim"],
         )
         
-        # SATELLITE TEMPORAL ENCODER (NEW!)
+        # SATELLITE TEMPORAL ENCODER
         if self.use_sat_temporal:
             self.sat_temporal_encoder = nn.GRU(
                 input_size=cfg_sat["feature_dim"],
                 hidden_size=cfg_sat["feature_dim"],
                 num_layers=cfg_sat.get("temporal_layers", 2),
                 batch_first=True,
-                dropout=0.1 if cfg_sat.get("temporal_layers", 2) > 1 else 0.0
+                dropout=0.2 if cfg_sat.get("temporal_layers", 2) > 1 else 0.0
             )
 
-        # GROUND ENCODER (Time-Then-Graph) - UNCHANGED
+        # GROUND ENCODER (Time-Then-Graph)
         self.ground_encoder = TimeThenGraphIsoModel(
             input_size=cfg_ground["input_size"],
             horizon=cfg["future_timesteps"],
@@ -94,25 +95,55 @@ class FusionModel(nn.Module):
         # Attention pooling on ground nodes to get 1 node 
         self.node_pool = GraphAttentionPooling(d_in=cfg_ground["output_size"])
 
-        # FUSION 
+        # FUSION MLP - PAPER-INSPIRED (3 dense layers with varied activations)
         d_sat = cfg_sat["feature_dim"]
         d_gnn = cfg_ground["output_size"]
         fusion_input_dim = d_sat + d_gnn
 
-        hidden1 = cfg_fusion["hidden_dim"]
-        hidden2 = cfg_fusion.get("hidden_dim2", hidden1)
-        dropout_p = cfg_fusion.get("dropout", 0.1)
+        # Get layer sizes from config
+        x1 = cfg_fusion.get("x1", 64)  # First hidden layer
+        x2 = cfg_fusion.get("x2", 32)  # Second hidden layer
+        x3 = cfg_fusion.get("x3", 16)  # Third hidden layer
+        
+        # Get activation functions from config (default: relu, gelu, relu)
+        act1_name = cfg_fusion.get("activation1", "relu")
+        act2_name = cfg_fusion.get("activation2", "gelu")
+        act3_name = cfg_fusion.get("activation3", "relu")
+        
+        # Activation mapping
+        act_map = {
+            "relu": nn.ReLU(),
+            "gelu": nn.GELU(),
+            "selu": nn.SELU(),
+            "tanh": nn.Tanh(),
+            "elu": nn.ELU(),
+        }
+        
+        act1 = act_map.get(act1_name, nn.ReLU())
+        act2 = act_map.get(act2_name, nn.GELU())
+        act3 = act_map.get(act3_name, nn.ReLU())
+        
+        # Dropout probability
+        dropout_p = cfg_fusion.get("dropout", 0.3)
 
+        # 3-layer MLP like in the paper
         self.mlp = nn.Sequential(
-            nn.Linear(fusion_input_dim, hidden1),
-            nn.ReLU(),
+            # Layer 1: fusion_input_dim -> x1
+            nn.Linear(fusion_input_dim, x1),
+            act1,
             nn.Dropout(dropout_p),
-
-            nn.Linear(hidden1, hidden2),
-            nn.ReLU(),
+            
+            # Layer 2: x1 -> x2
+            nn.Linear(x1, x2),
+            act2,
             nn.Dropout(dropout_p),
-
-            nn.Linear(hidden2, self.horizon),  # (B, horizon)
+            
+            # Layer 3: x2 -> x3
+            nn.Linear(x2, x3),
+            act3,
+            
+            # Output layer: x3 -> horizon
+            nn.Linear(x3, self.horizon),
         )
 
         self.A_ground = A_ground
@@ -127,13 +158,11 @@ class FusionModel(nn.Module):
 
         # === SATELLITE BRANCH ===
         if self.use_sat_temporal:
-            # x_sat: (B, T, H, W) where T = past_timesteps
             B, T, H, W = x_sat.shape
             
             # Process each timestep separately with spatial CNN
             sat_feats = []
             for t in range(T):
-                # Extract timestep t and add channel dimension
                 img_t = x_sat[:, t:t+1, :, :]  # (B, 1, H, W)
                 feat_t = self.sat_spatial_encoder(img_t)  # (B, feature_dim)
                 sat_feats.append(feat_t)
@@ -145,10 +174,9 @@ class FusionModel(nn.Module):
             sat_feat = sat_feats[:, -1]  # Take last timestep (B, feature_dim)
         else:
             # Old behavior: treat timesteps as channels
-            # x_sat: (B, T, H, W) interpreted as (B, C=T, H, W)
             sat_feat = self.sat_spatial_encoder(x_sat)  # (B, feature_dim)
 
-        # === GROUND BRANCH === (UNCHANGED)
+        # === GROUND BRANCH ===
         ground_feat = self.ground_encoder(
             x_ground,
             edge_index=edge_index,

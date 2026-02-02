@@ -3,26 +3,21 @@ date_range:
   end: "2023-12-31 23:59:59"
 
 frequency: "10min"             # Resampling frequency of both datasets
-
 past_timesteps: 18              # Input window = 3h = 18 × 10min
 future_timesteps: 6             # Prediction horizon = 6 × 10min = 1h
-
-batch_size: 10                 # Batch size for training
+batch_size: 64                  # Batch size for training
 
 data:
   ground_value_col: "irradiance_csi"      
-  target_station: null                   # null = first station in merged order
-  sat_value_col: "irradiance_csi"                   # set to your satellite CSI column name
+  target_station: PUY                   # null = first station in merged order
+  sat_value_col: "irradiance_csi"       # set to your satellite CSI column name
   sat_time_col: "time"
 
 model:
-
   # GROUND MODEL (TimeThenGraphIsoModel)
   ground:
     name: "TimeThenGraphIsoModel"
-
     nodes: 24                    # Number of ground stations
-
     coords:
       - [46.00, 6.90]
       - [46.10, 6.85]
@@ -30,64 +25,57 @@ model:
       - [46.05, 6.80]
       - [46.20, 6.88]
       - [46.12, 6.83]
-
-    knn: 3
+    knn: 5
     sigma: 20
-
-    # Input/Output
+    
+    # Input/Output - SIMPLIFIED
     input_size: 1               # irradiance only
-    hidden_size: 32             # GRU hidden size
-    output_size: 32             # output embedding dim of GNN branch
-
+    hidden_size: 32             # INCREASED from 16 to 32 (more capacity)
+    output_size: 32             # INCREASED from 16 to 32 (match hidden_size)
+    
     # Temporal GRU
-    time_layers: 1
+    time_layers: 1              # Keep simple
     time_skip_connect: false
-
+    
     # GraphConv parameters
-    graph_layers: 1
+    graph_layers: 2             # INCREASED from 1 to 2 (more spatial modeling)
     root_weight: true
     norm: "none"                # "none", "batchnorm", "layernorm", "asym"
     add_backward: false         # reverse edges (DiffConv)
     cached: false               # caching adjacency
-
+    
     # Embeddings / advanced features
     emb_size: 0
     add_embedding_before: []    # options: "encoding", "message_passing", "decoding"
     use_local_weights: null     # options: "encoder", "decoder"
     exog_size: 0                # no external covariates
-
+    
     # Misc
     activation: "elu"
     noise_mode: "lin"          # override TSL weird behavior
 
-
   # SATELLITE MODEL (SatelliteCNN + Temporal Encoder)
   satellite:
     name: "SatelliteCNN"
-
-    # NEW: Temporal encoder settings
-    use_temporal_encoder: true   # Set to false to use old behavior (T as channels)
-    temporal_layers: 1           # Number of GRU layers for temporal encoding
+    
+    # Temporal encoder settings
+    use_temporal_encoder: true   # Use GRU for temporal modeling
+    temporal_layers: 2           # INCREASED from 1 to 2 (better temporal modeling)
     
     # CNN layers
-    # Note: input_channels is now 1 when use_temporal_encoder=true
-    # (processes one image at a time, not all timesteps as channels)
-    input_channels: 1            # CHANGED from 18 to 1
-    
-    feature_dim: 64            # CNN output embedding
-
-    conv1_channels: 32
-    conv2_channels: 64         # also used for attention dim
+    input_channels: 1            # Process one image at a time
+    feature_dim: 64              # CNN output embedding (keep same)
+    conv1_channels: 32           # Keep same
+    conv2_channels: 64           # Keep same
     kernel_size: 3
     pool_size: 2
     
     # Prediction head
-    head_hidden_dim: 64         # Hidden dim for prediction head
-
+    head_hidden_dim: 32          # DECREASED from 64 to 32 (simpler head)
 
   # FUSION LAYER
   fusion:
     name: "FusionModel"
-    hidden_dim: 128             # hidden MLP size
-    hidden_dim2: 128            # second hidden layer (optional)
-    dropout: 0.3                # dropout probability
+    hidden_dim: 64               # First hidden layer (sat_dim + ground_dim = 64+32 = 96 -> 64)
+    hidden_dim2: 32              # Second hidden layer (64 -> 32)
+    dropout: 0.3                 # GOOD - high dropout for regularization

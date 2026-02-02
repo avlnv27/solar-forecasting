@@ -1,60 +1,100 @@
 # SolarForecasting
 
-<a target="_blank" href="https://cookiecutter-data-science.drivendata.org/">
+<!-- <a target="_blank" href="https://cookiecutter-data-science.drivendata.org/">
     <img src="https://img.shields.io/badge/CCDS-Project%20template-328F97?logo=cookiecutter" />
 </a>
 
-A short description of the project.
+A short description of the project. -->
 
-## Project Organization
+## Repository organization
 
 ```
-├── LICENSE            <- Open-source license if one is chosen
-├── Makefile           <- Makefile with convenience commands like `make data` or `make train`
-├── README.md          <- The top-level README for developers using this project.
-├── data
-│   ├── external       <- Data from third party sources.
-│   ├── interim        <- Intermediate data that has been transformed.
-│   ├── processed      <- The final, canonical data sets for modeling.
-│   └── raw            <- The original, immutable data dump.
+SOLAR-FORECASTING/
 │
-├── docs               <- A default mkdocs project; see www.mkdocs.org for details
+├── solar_forecast/                
+│   │
+│   ├── config/
+│   │   ├── dataset/
+│   │   │   ├── ground.yaml        # Ground data configuration
+│   │   │   ├── satellite.yaml     # Satellite data configuration
+│   │   │   └── model.yaml         # Model architecture & hyperparameters
+│   │   │
+│   │   ├── logging.py             # Logging configuration
+│   │   └── paths.py               # Project paths
+│   │
+│   ├── nn/
+│   │   ├── layers/                # Custom neural network layers
+│   │   │   ├── attention.py
+│   │   │   ├── sampling_readout.py
+│   │   │   └── __init__.py
+│   │   │
+│   │   ├── models/                     # Model definitions
+│   │   │   ├── fusion.py               # Satellite + Ground Fusion model
+│   │   │   ├── satellite_only.py       # CNN satellite-only baseline
+│   │   │   ├── ground_only.py          # GNN ground-only baseline
+│   │   │   ├── satellite_cnn.py        # Satellite CNN backbone
+│   │   │   └── time_then_graph_iso.py  # Ground GNN backbone
+│   │   │
+│   │   ├── utils.py               # Dataset, DataLoader, helpers for preprocessing
+│   │   ├── load_data.py
+│   │   └── __init__.py
+│   │
+│   ├── load_data.py               # Data loading (process .nc files)
+│   ├── preprocess_data.py         # Data cleaning & preprocessing (CSI index, night time removed...)
+│   ├── train.py                   # MSE training loop
+│   ├── train_huber.py             # Huber training loop
+│   ├── predict.py                 # Multi-horizon prediction script
+│   └── run_all_trainings.sh       # Shell script to launch training runs for the 3 models
 │
-├── models             <- Trained and serialized models, model predictions, or model summaries
+├── data/
+│   ├── raw/                       # Raw input data
+│   │   ├── ground/
+│   │   └── satellite/
+│   │
+│   ├── interim/
+│   │   ├── ground/
+│   │   │   └── *_processed.csv
+│   │   └── satellite/
+│   │       └── satellite_irradiance.csv
+│   │
+│   └── processed/
+│       ├── ground/
+│       │   └── *_processed_clean.csv
+│       │
+│       ├── satellite/
+│       │   └── satellite_irradiance_clean.csv
+│       │
+│       ├── checkpoints/
+│       │   ├── fusion_best.pt
+│       │   ├── fusion_best_*.pt        # Saved runs
+│       │   ├── satellite_only_best.pt
+│       │   └── ground_only_best.pt
+│       │
+│       ├── predictions/
+│       │   ├── fusion_predictions.csv
+│       │   ├── satellite_only_predictions.csv
+│       │   ├── ground_only_predictions.csv
+│       │   └── persistence_predictions.csv
+│       │
+│       └── evaluation/
+│           ├── metrics_by_horizon.png
+│           ├── normalized_metrics_by_horizon.png
+│           ├── residual_analysis.png
+│           ├── scatter_pred_vs_true.png
+│           └── ...
 │
-├── notebooks          <- Jupyter notebooks. Naming convention is a number (for ordering),
-│                         the creator's initials, and a short `-` delimited description, e.g.
-│                         `1.0-jqp-initial-data-exploration`.
+├── notebooks/
+│   └── analysis_notebook.ipynb     # Evaluation & visualization notebook
 │
-├── pyproject.toml     <- Project configuration file with package metadata for 
-│                         solar_forecast and configuration for tools like black
+├── models/                         # (optional) exported / external models
+├── reports/                        # Figures, tables, report material
+├── references/                     # Papers, references
 │
-├── references         <- Data dictionaries, manuals, and all other explanatory materials.
-│
-├── reports            <- Generated analysis as HTML, PDF, LaTeX, etc.
-│   └── figures        <- Generated graphics and figures to be used in reporting
-│
-├── requirements.txt   <- The requirements file for reproducing the analysis environment, e.g.
-│                         generated with `pip freeze > requirements.txt`
-│
-├── setup.cfg          <- Configuration file for flake8
-│
-└── solar_forecast   <- Source code for use in this project.
-    │
-    ├── __init__.py             <- Makes solar_forecast a Python module
-    │
-    ├── config.py               <- Store useful variables and configuration
-    │
-    ├── dataset.py              <- Scripts to download or generate data
-    │
-    ├── features.py             <- Code to create features for modeling
-    │
-    ├── modeling                
-    │   ├── __init__.py 
-    │   ├── predict.py          <- Code to run model inference with trained models          
-    │   └── train.py            <- Code to train models
-    │
-    └── plots.py                <- Code to create visualizations
+├── requirements.txt
+├── pyproject.toml
+├── Makefile
+└── README.md
+
 ```
 
 --------

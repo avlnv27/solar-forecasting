@@ -55,7 +55,12 @@ class GroundOnlyModel(nn.Module):
         )
 
         self.node_pool = GraphAttentionPooling(d_in=cfg_ground["output_size"])
-        self.head = nn.Linear(cfg_ground["output_size"], self.horizon)
+        
+        # Add dropout for better regularization
+        self.head = nn.Sequential(
+            nn.Dropout(0.3),
+            nn.Linear(cfg_ground["output_size"], self.horizon)
+        )
 
         self.A_ground = A_ground
 
