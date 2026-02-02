@@ -61,14 +61,24 @@ class GroundOnlyModel(nn.Module):
 
     def forward(
         self,
-        x_sat=None,          # ignored
-        x_ground=None,
+        x_sat,           # ignored (for compatibility with train loop)
+        x_ground,        # actual input
         edge_index=None,
         edge_weight=None,
     ):
+        """
+        Args:
+            x_sat: ignored (for compatibility)
+            x_ground: (B, T, N, F) - ground station data
+            edge_index: graph edge indices
+            edge_weight: graph edge weights
+        
+        Returns:
+            y: (B, horizon) - predictions
+        """
         if edge_index is None:
             if self.A_ground is None:
-                raise ValueError("edge_index not provided")
+                raise ValueError("edge_index not provided and A_ground is None")
             edge_index, edge_weight = self.A_ground
 
         ground_feat = self.ground_encoder(

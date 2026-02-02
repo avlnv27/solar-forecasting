@@ -25,24 +25,44 @@ class FusionModel(nn.Module):
     """
     Combines SatelliteCNN and TimeThenGraphIsoModel
     using a fusion MLP for final irradiance forecast.
-
+    
+    IMPROVED VERSION: Adds temporal encoder (GRU) for satellite branch
+    to match the temporal modeling capability of the ground branch.
     """
     def __init__(self, cfg, cfg_sat, cfg_ground, cfg_fusion, A_ground=None):
         super().__init__()
 
         self.horizon = cfg["future_timesteps"]
+        self.past_steps = cfg["past_timesteps"]
+        
+        # Flag to use temporal encoder or not (for backward compatibility)
+        self.use_sat_temporal = cfg_sat.get("use_temporal_encoder", True)
 
-        # SATELLITE ENCODER 
-        self.sat_encoder = SatelliteCNN(
-            input_channels=cfg_sat["input_channels"],
+        # SATELLITE SPATIAL ENCODER 
+        # Changed: input_channels = 1 (process one image at a time)
+        # instead of input_channels = past_timesteps (treating time as channels)
+        sat_input_channels = 1 if self.use_sat_temporal else cfg_sat["input_channels"]
+        
+        self.sat_spatial_encoder = SatelliteCNN(
+            input_channels=sat_input_channels,
             conv1_channels=cfg_sat["conv1_channels"],
             conv2_channels=cfg_sat["conv2_channels"],
             kernel_size=cfg_sat["kernel_size"],
             pool_size=cfg_sat["pool_size"],
             feature_dim=cfg_sat["feature_dim"],
         )
+        
+        # SATELLITE TEMPORAL ENCODER (NEW!)
+        if self.use_sat_temporal:
+            self.sat_temporal_encoder = nn.GRU(
+                input_size=cfg_sat["feature_dim"],
+                hidden_size=cfg_sat["feature_dim"],
+                num_layers=cfg_sat.get("temporal_layers", 2),
+                batch_first=True,
+                dropout=0.1 if cfg_sat.get("temporal_layers", 2) > 1 else 0.0
+            )
 
-        # GROUND ENCODER (Time-Then-Graph)
+        # GROUND ENCODER (Time-Then-Graph) - UNCHANGED
         self.ground_encoder = TimeThenGraphIsoModel(
             input_size=cfg_ground["input_size"],
             horizon=cfg["future_timesteps"],
@@ -105,17 +125,37 @@ class FusionModel(nn.Module):
                                  "or A_ground must be set in the model.")
             edge_index, edge_weight = self.A_ground
 
-        # Satellite features (B, d_sat)
-        sat_feat = self.sat_encoder(x_sat)
+        # === SATELLITE BRANCH ===
+        if self.use_sat_temporal:
+            # x_sat: (B, T, H, W) where T = past_timesteps
+            B, T, H, W = x_sat.shape
+            
+            # Process each timestep separately with spatial CNN
+            sat_feats = []
+            for t in range(T):
+                # Extract timestep t and add channel dimension
+                img_t = x_sat[:, t:t+1, :, :]  # (B, 1, H, W)
+                feat_t = self.sat_spatial_encoder(img_t)  # (B, feature_dim)
+                sat_feats.append(feat_t)
+            
+            sat_feats = torch.stack(sat_feats, dim=1)  # (B, T, feature_dim)
+            
+            # Temporal encoding with GRU
+            sat_feats, _ = self.sat_temporal_encoder(sat_feats)  # (B, T, feature_dim)
+            sat_feat = sat_feats[:, -1]  # Take last timestep (B, feature_dim)
+        else:
+            # Old behavior: treat timesteps as channels
+            # x_sat: (B, T, H, W) interpreted as (B, C=T, H, W)
+            sat_feat = self.sat_spatial_encoder(x_sat)  # (B, feature_dim)
 
-        # Ground features 
+        # === GROUND BRANCH === (UNCHANGED)
         ground_feat = self.ground_encoder(
             x_ground,
             edge_index=edge_index,
             edge_weight=edge_weight,
         )
         
-        # (B, H, N, d_gnn) -> take last horizon horizon
+        # (B, H, N, d_gnn) -> take last horizon
         if ground_feat.dim() == 4:
             ground_last = ground_feat[:, -1]      # (B, N, d_gnn)
         elif ground_feat.dim() == 3:
@@ -126,6 +166,7 @@ class FusionModel(nn.Module):
         # Pooling nodes (B, d_gnn)
         local_feat = self.node_pool(ground_last)
 
+        # === FUSION ===
         fusion_in = torch.cat([sat_feat, local_feat], dim=-1)  # (B, d_sat + d_gnn)
         y = self.mlp(fusion_in)        # (B, horizon)
 

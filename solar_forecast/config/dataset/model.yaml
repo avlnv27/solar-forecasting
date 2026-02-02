@@ -1,6 +1,6 @@
 date_range:
   start: "2023-01-01 00:00:00"
-  end: "2023-01-31 23:59:59"
+  end: "2023-12-31 23:59:59"
 
 frequency: "10min"             # Resampling frequency of both datasets
 
@@ -61,23 +61,33 @@ model:
     noise_mode: "lin"          # override TSL weird behavior
 
 
-  # SATELLITE MODEL (SatelliteCNN)
+  # SATELLITE MODEL (SatelliteCNN + Temporal Encoder)
   satellite:
     name: "SatelliteCNN"
 
-    # Channels = (#variables × past_timesteps)
-    input_channels: 18          # 1 variable × 18 past frames,
+    # NEW: Temporal encoder settings
+    use_temporal_encoder: true   # Set to false to use old behavior (T as channels)
+    temporal_layers: 2           # Number of GRU layers for temporal encoding
+    
+    # CNN layers
+    # Note: input_channels is now 1 when use_temporal_encoder=true
+    # (processes one image at a time, not all timesteps as channels)
+    input_channels: 1            # CHANGED from 18 to 1
     
     feature_dim: 128            # CNN output embedding
 
-    # CNN layers
     conv1_channels: 64
     conv2_channels: 128         # also used for attention dim
     kernel_size: 3
     pool_size: 2
+    
+    # Prediction head
+    head_hidden_dim: 64         # Hidden dim for prediction head
 
 
   # FUSION LAYER
   fusion:
     name: "FusionModel"
     hidden_dim: 128             # hidden MLP size
+    hidden_dim2: 128            # second hidden layer (optional)
+    dropout: 0.1                # dropout probability
