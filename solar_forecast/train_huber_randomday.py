@@ -10,23 +10,16 @@ import typer
 import yaml
 from torch import nn
 from torch.utils.data import DataLoader
+import matplotlib.pyplot as plt
 
-from solar_forecast.nn.utils import (
-    GroundPreprocessor,
-    SatellitePreprocessor,
-    make_dataloader,
-)
+from solar_forecast.nn.utils import make_dataloader
 from solar_forecast.config.paths import (
-    INTERIM_DATA_DIR,
     PROCESSED_DATA_DIR,
     GROUND_DATASET_CONFIG,
     SATELLITE_DATASET_CONFIG,
     MODEL_CONFIG,
-    RAW_DATA_DIR,
 )
 from solar_forecast.nn.models.fusion import FusionModel
-from solar_forecast.nn.models.satellite_only import SatelliteOnlyModel
-from solar_forecast.nn.models.ground_only import GroundOnlyModel
 
 app = typer.Typer(help="Training with RANDOM DAY-LEVEL train/val split.")
 
@@ -97,7 +90,7 @@ def evaluate(
 
 
 # ============================================================
-# DATA PREP
+# DATA
 # ============================================================
 
 def load_model_cfg() -> dict:
@@ -111,18 +104,9 @@ def prepare_data_and_graph(cfg: dict):
 
 
 def split_by_random_days(
-    sat: torch.Tensor,
-    ground: torch.Tensor,
-    target: torch.Tensor,
-    timestamps: pd.DatetimeIndex,
-    val_ratio: float,
-    seed: int = 42,
+    sat, ground, target, timestamps, val_ratio: float, seed: int = 42
 ):
-    """
-    Random split by FULL DAYS (no temporal leakage).
-    """
     rng = np.random.default_rng(seed)
-
     days = pd.Index(timestamps.normalize().unique())
     n_val_days = int(len(days) * val_ratio)
 
@@ -174,36 +158,15 @@ def train_fusion(
     sat, ground, target, timestamps, edge_index, edge_weight = prepare_data_and_graph(cfg)
 
     (
-        sat_tr,
-        ground_tr,
-        target_tr,
-        ts_tr,
-        sat_val,
-        ground_val,
-        target_val,
-        ts_val,
-    ) = split_by_random_days(
-        sat, ground, target, timestamps, val_ratio, seed
-    )
+        sat_tr, ground_tr, target_tr, ts_tr,
+        sat_val, ground_val, target_val, ts_val,
+    ) = split_by_random_days(sat, ground, target, timestamps, val_ratio, seed)
 
     train_loader = make_dataloader(
-        sat_data=sat_tr,
-        ground_data=ground_tr,
-        target_data=target_tr,
-        timestamps=ts_tr,
-        cfg=cfg,
-        batch_size=batch_size,
-        shuffle=True,
+        sat_tr, ground_tr, target_tr, ts_tr, cfg, batch_size, shuffle=True
     )
-
     val_loader = make_dataloader(
-        sat_data=sat_val,
-        ground_data=ground_val,
-        target_data=target_val,
-        timestamps=ts_val,
-        cfg=cfg,
-        batch_size=batch_size,
-        shuffle=False,
+        sat_val, ground_val, target_val, ts_val, cfg, batch_size, shuffle=False
     )
 
     edge_index = edge_index.to(device)
@@ -218,42 +181,34 @@ def train_fusion(
     ).to(device)
 
     criterion = nn.HuberLoss(delta=huber_delta)
-    optimizer = torch.optim.Adam(
-        model.parameters(), lr=lr, weight_decay=weight_decay
-    )
-
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
         optimizer, factor=lr_factor, patience=lr_patience, min_lr=1e-6
     )
+
+    # LOSS HISTORY
+    train_losses, val_losses = [], []
 
     best_val = float("inf")
     wait = 0
 
     for epoch in range(1, epochs + 1):
         tr_loss = train_one_epoch(
-            model,
-            train_loader,
-            optimizer,
-            criterion,
-            device,
-            edge_index,
-            edge_weight,
-            max_grad_norm,
+            model, train_loader, optimizer, criterion,
+            device, edge_index, edge_weight, max_grad_norm
+        )
+        val_loss = evaluate(
+            model, val_loader, criterion, device, edge_index, edge_weight
         )
 
-        val_loss = evaluate(
-            model,
-            val_loader,
-            criterion,
-            device,
-            edge_index,
-            edge_weight,
-        )
+        train_losses.append(tr_loss)
+        val_losses.append(val_loss)
 
         scheduler.step(val_loss)
 
         logger.info(
-            f"[{epoch:03d}] train={tr_loss:.4f} val={val_loss:.4f} lr={optimizer.param_groups[0]['lr']:.2e}"
+            f"[{epoch:03d}] train={tr_loss:.4f} val={val_loss:.4f} "
+            f"lr={optimizer.param_groups[0]['lr']:.2e}"
         )
 
         if val_loss < best_val:
@@ -268,6 +223,38 @@ def train_fusion(
                 logger.warning("Early stopping triggered")
                 break
 
+    # ============================================================
+    # SAVE LOSS CSV + PLOT
+    # ============================================================
+
+    out_dir = PROCESSED_DATA_DIR / "predictions"
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    df_loss = pd.DataFrame({
+        "epoch": np.arange(1, len(train_losses) + 1),
+        "train_loss": train_losses,
+        "val_loss": val_losses,
+    })
+
+    csv_path = out_dir / "training_losses_fusion.csv"
+    df_loss.to_csv(csv_path, index=False)
+
+    plt.figure(figsize=(8, 5))
+    plt.plot(df_loss["epoch"], df_loss["train_loss"], label="Train")
+    plt.plot(df_loss["epoch"], df_loss["val_loss"], label="Validation")
+    plt.xlabel("Epoch")
+    plt.ylabel("Loss")
+    plt.title("Training & Validation Loss – Fusion Model")
+    plt.legend()
+    plt.grid(alpha=0.3)
+    plt.tight_layout()
+
+    fig_path = out_dir / "training_loss_curve_fusion.png"
+    plt.savefig(fig_path, dpi=150)
+    plt.close()
+
+    logger.success(f"Loss CSV saved → {csv_path}")
+    logger.success(f"Loss plot saved → {fig_path}")
     logger.success("Training finished.")
 
 

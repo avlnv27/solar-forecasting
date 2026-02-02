@@ -30,17 +30,17 @@ model:
     
     # Input/Output - SIMPLIFIED
     input_size: 1               # irradiance only
-    hidden_size: 32             # INCREASED from 16 to 32 (more capacity)
-    output_size: 32             # INCREASED from 16 to 32 (match hidden_size)
+    hidden_size: 64             # INCREASED from 16 to 32 (more capacity)
+    output_size: 64             # INCREASED from 16 to 32 (has to be equal to hidden_size)
     
     # Temporal GRU
-    time_layers: 1              # Keep simple
+    time_layers: 2              # Keep simple
     time_skip_connect: false
     
     # GraphConv parameters
     graph_layers: 2             # INCREASED from 1 to 2 (more spatial modeling)
     root_weight: true
-    norm: "none"                # "none", "batchnorm", "layernorm", "asym"
+    norm: "layernorm"                # "none", "batchnorm", "layernorm", "asym"
     add_backward: false         # reverse edges (DiffConv)
     cached: false               # caching adjacency
     

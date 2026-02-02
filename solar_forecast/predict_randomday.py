@@ -31,7 +31,7 @@ PREDICTION_OUTPUT_FILES = {
 CKPT_NAMES = {
     "satellite_only": "satellite_only_best.pt",
     "ground_only":    "ground_only_best.pt",
-    "fusion":         "fusion_best_randday_20260202_201323.pt",
+    "fusion":         "fusion_best_randday_20260202_222555.pt",
 }
 
 RANDOM_SEED = 42   # IMPORTANT: keep same as training if possible
