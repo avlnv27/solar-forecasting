@@ -1,0 +1,12 @@
+batch_size: 64
+ground_activation: selu
+ground_graph_layers: 3
+ground_hidden_size: 128
+ground_time_layers: 3
+ground_time_skip_connect: true
+huber_delta: 0.10074190484535857
+lr: 0.0011886258835439353
+lr_factor: 0.3483185187932511
+lr_patience: 8
+max_grad_norm: 1.908016813358325
+weight_decay: 3.4151600937532083e-06

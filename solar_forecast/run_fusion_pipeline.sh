@@ -10,18 +10,29 @@
 # 3. Generate predictions
 #
 # Usage:
-#   chmod +x run_fusion_pipeline.sh
-#   ./run_fusion_pipeline.sh [optuna|retrain|predict|all]
+#   chmod +x solar_forecast/run_fusion_pipeline.sh
+#   ./solar_forecast/run_fusion_pipeline.sh [optuna|retrain|predict|all]
+#   ./solar_forecast/run_fusion_pipeline.sh all
 # ============================================================
 
 set -e
 
+# test Configuration
+# MODEL_NAME="Fusion Model"
+# N_TRIALS=1
+# MAX_EPOCHS_OPTUNA=1
+# PATIENCE_OPTUNA=15
+# EPOCHS_RETRAIN=1
+# PATIENCE_RETRAIN=25
+# STORAGE="sqlite:///optuna_fusion.db"
+# OUTPUT_DIR="models/best_optuna_fusion"
+
 # Configuration
 MODEL_NAME="Fusion Model"
-N_TRIALS=100
+N_TRIALS=50
 MAX_EPOCHS_OPTUNA=100
 PATIENCE_OPTUNA=15
-EPOCHS_RETRAIN=200
+EPOCHS_RETRAIN=150
 PATIENCE_RETRAIN=25
 STORAGE="sqlite:///optuna_fusion.db"
 OUTPUT_DIR="models/best_optuna_fusion"
@@ -81,7 +92,7 @@ run_optuna() {
     
     START_TIME=$(date +%s)
     
-    python -m solar_forecast.optuna_search \
+    python -m solar_forecast.optuna_fusion \
         --n-trials $N_TRIALS \
         --max-epochs $MAX_EPOCHS_OPTUNA \
         --patience $PATIENCE_OPTUNA \
@@ -162,7 +173,7 @@ run_predict() {
     
     START_TIME=$(date +%s)
     
-    python -m solar_forecast.predict_randomday
+    python -m solar_forecast.predict
     
     if [ $? -eq 0 ]; then
         END_TIME=$(date +%s)

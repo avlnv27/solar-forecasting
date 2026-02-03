@@ -1,0 +1,14 @@
+batch_size: 32
+huber_delta: 0.39638958863878504
+lr: 0.0001329291894316216
+lr_factor: 0.5404460046972835
+lr_patience: 9
+max_grad_norm: 0.7613762547568976
+sat_attn_dim: 32
+sat_conv1_channels: 16
+sat_conv2_channels: 64
+sat_feature_dim: 128
+sat_head_hidden_dim: 32
+sat_temporal_layers: 3
+sat_use_attention: false
+weight_decay: 0.0007114476009343421

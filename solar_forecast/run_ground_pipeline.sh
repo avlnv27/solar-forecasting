@@ -10,18 +10,29 @@
 # 3. Generate predictions
 #
 # Usage:
-#   chmod +x run_ground_pipeline.sh
-#   ./run_ground_pipeline.sh [optuna|retrain|predict|all]
+#   chmod +x solar_forecast/run_ground_pipeline.sh
+#   ./solar_forecast/run_ground_pipeline.sh [optuna|retrain|predict|all]
+#   ./solar_forecast/run_ground_pipeline.sh all
 # ============================================================
 
 set -e
 
-# Configuration
+# test Configuration
+# MODEL_NAME="Ground Only"
+# N_TRIALS=1
+# MAX_EPOCHS_OPTUNA=1
+# PATIENCE_OPTUNA=15
+# EPOCHS_RETRAIN=1
+# PATIENCE_RETRAIN=25
+# STORAGE="sqlite:///optuna_ground.db"
+# OUTPUT_DIR="models/best_optuna_ground"
+
+# # Configuration
 MODEL_NAME="Ground Only"
-N_TRIALS=50
+N_TRIALS=40
 MAX_EPOCHS_OPTUNA=100
 PATIENCE_OPTUNA=15
-EPOCHS_RETRAIN=200
+EPOCHS_RETRAIN=150
 PATIENCE_RETRAIN=25
 STORAGE="sqlite:///optuna_ground.db"
 OUTPUT_DIR="models/best_optuna_ground"
@@ -162,7 +173,7 @@ run_predict() {
     
     START_TIME=$(date +%s)
     
-    python -m solar_forecast.predict_randomday
+    python -m solar_forecast.predict
     
     if [ $? -eq 0 ]; then
         END_TIME=$(date +%s)
@@ -203,7 +214,7 @@ run_all() {
         exit 0
     fi
     
-    run_optuna
+    # run_optuna
     run_retrain
     run_predict
     
