@@ -1,3 +1,4 @@
+
 date_range:
   start: "2023-01-01 00:00:00"
   end: "2023-12-31 23:59:59"
@@ -89,7 +90,114 @@ model:
     # Regularization
     dropout: 0.3                 # Dropout probability
     
-    # old names
-    hidden_dim: 64               # Fallback for x1
-    hidden_dim2: 32              # Fallback for x2
-    hidden_dim3: 16              # Fallback for x3
+
+
+
+
+
+
+
+
+
+
+# OLD
+
+
+
+
+
+# date_range:
+#   start: "2023-01-01 00:00:00"
+#   end: "2023-12-31 23:59:59"
+
+# frequency: "10min"              # Resampling frequency of both datasets
+# past_timesteps: 18              # Input window = 3h = 18 × 10min
+# future_timesteps: 6             # Prediction horizon = 6 × 10min = 1h
+# batch_size: 64                  # Batch size for training
+
+# data:
+#   ground_value_col: "irradiance_csi"      
+#   target_station: PUY           # null = first station in merged order
+#   sat_value_col: "irradiance_csi"
+#   sat_time_col: "time"
+
+# model:
+#   # ============================================================
+#   # GROUND MODEL (TimeThenGraphIsoModel)
+#   # ============================================================
+#   ground:
+#     name: "TimeThenGraphIsoModel"
+#     nodes: 6                     # Number of ground stations in your data
+    
+#     # Input/Output
+#     input_size: 1                # irradiance only
+#     hidden_size: 64              # Increased for better capacity
+#     output_size: 64              # Must equal hidden_size
+    
+#     # Temporal GRU parameters
+#     time_layers: 2               # Number of GRU layers
+#     time_skip_connect: false     # Skip connection from temporal to spatial
+    
+#     # GraphConv parameters
+#     graph_layers: 2              # Number of graph convolutional layers
+#     root_weight: true            # Include self-loops in message passing
+#     norm: "none"                 # FIXED: Use "none" (TSL doesn't support "sym")
+#                                  # Options: "none" (safest), or check TSL docs
+#     add_backward: false          # Use bidirectional edges (DiffConv)
+#     cached: false                # Cache normalized adjacency matrix
+    
+#     # Embeddings (advanced features - keep disabled for now)
+#     emb_size: 0                  # Node embedding size (0 = disabled)
+#     add_embedding_before: []     # When to add embeddings
+#     use_local_weights: null      # Use node-specific weights
+#     exog_size: 0                 # External covariates (not used)
+    
+#     # Activation and noise
+#     activation: "elu"            # Activation function
+#     noise_mode: "lin"            # Noise model (for TSL compatibility)
+
+#   # ============================================================
+#   # SATELLITE MODEL (SatelliteCNN + Temporal Encoder)
+#   # ============================================================
+#   satellite:
+#     name: "SatelliteCNN"
+    
+#     # Temporal encoder settings
+#     use_temporal_encoder: true   # Enable GRU for temporal modeling
+#     temporal_layers: 2           # Number of GRU layers
+#     attn_dim: 32                 # Attention hidden dimension
+    
+#     # CNN architecture
+#     input_channels: 1            # Process one image at a time
+#     feature_dim: 64              # CNN output embedding dimension
+#     conv1_channels: 32           # First conv layer channels
+#     conv2_channels: 64           # Second conv layer channels
+#     kernel_size: 3               # Convolution kernel size
+#     pool_size: 2                 # Pooling size (if used)
+    
+#     # Prediction head
+#     head_hidden_dim: 32          # Hidden layer in prediction head
+
+#   # ============================================================
+#   # FUSION LAYER - FIXED PARAMETER NAMES
+#   # ============================================================
+#   fusion:
+#     name: "FusionModel"
+    
+#     # MLP hidden layer sizes
+#     x1: 64                       # FIXED: First hidden layer (was hidden_dim)
+#     x2: 32                       # FIXED: Second hidden layer (was hidden_dim2)
+#     x3: 16                       # FIXED: Third hidden layer (NEW!)
+    
+#     # Activation functions for each layer
+#     activation1: "relu"          # First layer activation
+#     activation2: "gelu"          # Second layer activation  
+#     activation3: "relu"          # Third layer activation
+    
+#     # Regularization
+#     dropout: 0.3                 # Dropout probability
+    
+#     # old names
+#     hidden_dim: 64               # Fallback for x1
+#     hidden_dim2: 32              # Fallback for x2
+#     hidden_dim3: 16              # Fallback for x3

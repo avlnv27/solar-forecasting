@@ -20,7 +20,7 @@ import matplotlib.pyplot as plt
 from solar_forecast.nn.utils import make_dataloader
 from solar_forecast.config.paths import MODELS_DIR
 from solar_forecast.nn.models.satellite_only import SatelliteOnlyModel
-from solar_forecast.train_huber_randomday import (
+from solar_forecast.train import (
     load_model_cfg,
     prepare_data_and_graph,
     split_by_random_days,
