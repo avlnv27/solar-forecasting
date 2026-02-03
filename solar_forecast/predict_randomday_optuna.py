@@ -1,12 +1,3 @@
-"""
-UPDATED: Prediction script that loads models from models/best_optuna_*/ directories.
-
-This works with the retrained models from Optuna.
-
-Run:
-python -m solar_forecast.predict_randomday
-"""
-
 from __future__ import annotations
 
 from pathlib import Path
@@ -23,11 +14,11 @@ from solar_forecast.nn.utils import make_dataloader, ForecastDataset
 from solar_forecast.nn.models.fusion import FusionModel
 from solar_forecast.nn.models.satellite_only import SatelliteOnlyModel
 from solar_forecast.nn.models.ground_only import GroundOnlyModel
-from solar_forecast.config.paths import PROCESSED_DATA_DIR, MODELS_DIR
+from solar_forecast.config.paths import PROCESSED_DATA_DIR
 
 
 # ============================================================
-# CONFIG - UPDATED PATHS
+# CONFIG – change only these if needed
 # ============================================================
 
 PREDICTION_OUTPUT_FILES = {
@@ -37,14 +28,13 @@ PREDICTION_OUTPUT_FILES = {
     "fusion":         "fusion_predictions.csv",
 }
 
-# Can be changed according to which model we want to load
-CKPT_PATHS = {
-    "satellite_only": MODELS_DIR / "best_optuna_satellite" / "best_model.pt",
-    "ground_only":    MODELS_DIR / "best_optuna_ground" / "best_model.pt",
-    "fusion":         MODELS_DIR / "best_optuna_fusion" / "best_model.pt",
+CKPT_NAMES = {
+    "satellite_only": "satellite_only_best.pt",
+    "ground_only":    "ground_only_best.pt",
+    "fusion":         "best_model.pt",
 }
 
-RANDOM_SEED = 42
+RANDOM_SEED = 42   # IMPORTANT: keep same as training if possible
 
 
 # ============================================================
@@ -63,7 +53,11 @@ def build_val_data_random_days(
     val_ratio: float,
     seed: int = 42,
 ):
-    """Random-day split: sample full days randomly."""
+    """
+    Random-day split:
+    - sample full days randomly
+    - keep all timesteps from those days
+    """
     rng = random.Random(seed)
 
     days = pd.to_datetime(timestamps.date)
@@ -91,7 +85,7 @@ def csi_to_ghi(csi: np.ndarray, ghi_clear: np.ndarray) -> np.ndarray:
 
 
 # ============================================================
-# MODEL HELPERS - FIXED
+# MODEL HELPERS
 # ============================================================
 
 def predict_persistence(
@@ -100,7 +94,10 @@ def predict_persistence(
     past: int,
     future: int,
 ) -> Tuple[np.ndarray, np.ndarray]:
-    """Persistence baseline: ŷ(t+h) = y(t)"""
+    """
+    Persistence baseline:
+    ŷ(t+h) = y(t)
+    """
     y_true, y_pred = [], []
 
     for i in valid_starts:
@@ -111,78 +108,50 @@ def predict_persistence(
     return torch.stack(y_true).numpy(), torch.stack(y_pred).numpy()
 
 
-def load_model(model_type, default_cfg, edge_index, edge_weight, ckpt_path, device):
-    """
-    Load model from checkpoint with config handling.
-    
-    FIXED: Tries to load config from checkpoint first, falls back to default.
-    This prevents architecture mismatch errors!
-    """
-    # Check if checkpoint exists
-    if not ckpt_path.exists():
-        logger.error(f"❌ Checkpoint not found: {ckpt_path}")
-        logger.error(f"   Run: python -m solar_forecast.retrain_{model_type.replace('_', '_')}_best")
-        raise FileNotFoundError(f"Checkpoint not found: {ckpt_path}")
+def load_model(model_type, cfg, edge_index, edge_weight, ckpt_path, device):
+    """Load model from checkpoint with correct config."""
     
     # Load checkpoint
     ckpt = torch.load(ckpt_path, map_location=device)
     
     # Try to get config from checkpoint
     if "config" in ckpt:
-        cfg = ckpt["config"]
+        model_cfg = ckpt["config"]
         logger.info(f"✓ Using config from checkpoint for {model_type}")
+    elif "best_params" in ckpt:
+        # Rebuild from Optuna params if available
+        from solar_forecast.optuna_fusion import build_config_from_params
+        model_cfg = build_config_from_params(cfg, ckpt["best_params"])
+        logger.info(f"✓ Rebuilt config from best_params for {model_type}")
     else:
-        cfg = default_cfg
-        logger.warning(f"⚠ No config in checkpoint for {model_type}, using default")
-        logger.warning("   This may cause architecture mismatch errors!")
+        model_cfg = cfg
+        logger.warning(f"⚠ No config in checkpoint, using default - this may fail!")
     
-    # Create model with correct config
+    # Create model
     if model_type == "fusion":
         model = FusionModel(
-            cfg=cfg,
-            cfg_sat=cfg["model"]["satellite"],
-            cfg_ground=cfg["model"]["ground"],
-            cfg_fusion=cfg["model"]["fusion"],
+            cfg=model_cfg,
+            cfg_sat=model_cfg["model"]["satellite"],
+            cfg_ground=model_cfg["model"]["ground"],
+            cfg_fusion=model_cfg["model"]["fusion"],
             A_ground=(edge_index, edge_weight),
         )
     elif model_type == "satellite_only":
-        model = SatelliteOnlyModel(
-            cfg=cfg,
-            cfg_sat=cfg["model"]["satellite"]
-        )
+        model = SatelliteOnlyModel(cfg=model_cfg, cfg_sat=model_cfg["model"]["satellite"])
     elif model_type == "ground_only":
         model = GroundOnlyModel(
-            cfg=cfg,
-            cfg_ground=cfg["model"]["ground"],
+            cfg=model_cfg,
+            cfg_ground=model_cfg["model"]["ground"],
             A_ground=(edge_index, edge_weight),
         )
     else:
-        raise ValueError(f"Unknown model type: {model_type}")
+        raise ValueError(model_type)
 
-    # Load weights
-    try:
-        model.load_state_dict(ckpt["model_state_dict"])
-    except RuntimeError as e:
-        logger.error(f"Failed to load model weights: {e}")
-        logger.error("This usually means the checkpoint config doesn't match the model architecture")
-        raise
-    
+    model.load_state_dict(ckpt["model_state_dict"])
     model.to(device).eval()
 
-    # Log model info
-    n_params = sum(p.numel() for p in model.parameters())
-    logger.success(f"Loaded {model_type} model from {ckpt_path.parent.name}")
-    logger.info(f"  Parameters: {n_params:,}")
-    
-    if "epoch" in ckpt:
-        logger.info(f"  Trained for: {ckpt['epoch']} epochs")
-    if "val_loss" in ckpt:
-        logger.info(f"  Val loss: {ckpt['val_loss']:.6f}")
-    if "best_params" in ckpt:
-        logger.info(f"  Using Optuna-optimized hyperparameters ✨")
-    
+    logger.success(f"Loaded {model_type} model from {ckpt_path}")
     return model
-
 
 @torch.no_grad()
 def predict_multi_horizon(model, loader, device, edge_index, edge_weight):
@@ -217,7 +186,7 @@ def run_predict(
     cfg = load_model_cfg()
     sat, ground, target, timestamps, edge_index, edge_weight = prepare_data_and_graph(cfg)
 
-    # Random day split (same logic as training)
+    # ---- RANDOM DAY SPLIT (same logic as training)
     sat_v, ground_v, target_v, ts_v = build_val_data_random_days(
         sat, ground, target, timestamps, val_ratio, RANDOM_SEED
     )
@@ -253,7 +222,6 @@ def run_predict(
             target_v, dataset.valid_starts, past, future
         )
     else:
-        # FIXED: Load model with config from checkpoint
         model = load_model(
             model_type, cfg, edge_index, edge_weight, ckpt_path, device
         )
@@ -315,43 +283,9 @@ def run_predict(
 # ============================================================
 
 if __name__ == "__main__":
-    logger.info("=" * 70)
-    logger.info("Starting predictions for all models...")
-    logger.info(f"Loading models from: {MODELS_DIR}")
-    logger.info("=" * 70)
+    CKPT_DIR = PROCESSED_DATA_DIR / "checkpoints"
 
-    # Persistence (no checkpoint needed)
-    try:
-        logger.info("\n[1/4] Running Persistence baseline...")
-        run_predict("persistence", None)
-    except Exception as e:
-        logger.error(f"Persistence failed: {e}")
-
-    # Satellite Only
-    try:
-        logger.info("\n[2/4] Running Satellite Only...")
-        run_predict("satellite_only", CKPT_PATHS["satellite_only"])
-    except Exception as e:
-        logger.error(f"Satellite-only failed: {e}")
-        logger.error("   Make sure you ran: python -m solar_forecast.retrain_satellite_best")
-
-    # Ground Only
-    try:
-        logger.info("\n[3/4] Running Ground Only...")
-        run_predict("ground_only", CKPT_PATHS["ground_only"])
-    except Exception as e:
-        logger.error(f"Ground-only failed: {e}")
-        logger.error("   Make sure you ran: python -m solar_forecast.retrain_ground_best")
-
-    # Fusion
-    try:
-        logger.info("\n[4/4] Running Fusion...")
-        run_predict("fusion", CKPT_PATHS["fusion"])
-    except Exception as e:
-        logger.error(f"Fusion failed: {e}")
-        logger.error("   Make sure you ran: python -m solar_forecast.retrain_fusion_best")
-
-    logger.info("=" * 70)
-    logger.success("Prediction complete!")
-    logger.info(f"Results saved to: {PROCESSED_DATA_DIR / 'predictions'}")
-    logger.info("=" * 70)
+    run_predict("persistence", None)
+    run_predict("satellite_only", CKPT_DIR / CKPT_NAMES["satellite_only"])
+    run_predict("ground_only",    CKPT_DIR / CKPT_NAMES["ground_only"])
+    run_predict("fusion",         CKPT_DIR / CKPT_NAMES["fusion"])

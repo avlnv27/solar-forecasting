@@ -133,7 +133,7 @@ def split_by_random_days(
 
 
 # ============================================================
-# TRAIN FUSION
+# TRAIN FUSION - FIXED: SAVES FULL CONFIG
 # ============================================================
 
 @app.command()
@@ -180,6 +180,10 @@ def train_fusion(
         A_ground=(edge_index, edge_weight),
     ).to(device)
 
+    # Log model info
+    n_params = sum(p.numel() for p in model.parameters())
+    logger.info(f"Model parameters: {n_params:,}")
+
     criterion = nn.HuberLoss(delta=huber_delta)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
@@ -190,7 +194,12 @@ def train_fusion(
     train_losses, val_losses = [], []
 
     best_val = float("inf")
+    best_epoch = 0
     wait = 0
+
+    logger.info("=" * 70)
+    logger.info("Starting training...")
+    logger.info("=" * 70)
 
     for epoch in range(1, epochs + 1):
         tr_loss = train_one_epoch(
@@ -205,23 +214,49 @@ def train_fusion(
         val_losses.append(val_loss)
 
         scheduler.step(val_loss)
+        current_lr = optimizer.param_groups[0]['lr']
 
         logger.info(
             f"[{epoch:03d}] train={tr_loss:.4f} val={val_loss:.4f} "
-            f"lr={optimizer.param_groups[0]['lr']:.2e}"
+            f"lr={current_lr:.2e}"
         )
 
         if val_loss < best_val:
             best_val = val_loss
+            best_epoch = epoch
             wait = 0
+            
+            # FIXED: Save complete checkpoint with config
             ckpt_path.parent.mkdir(parents=True, exist_ok=True)
-            torch.save({"model_state_dict": model.state_dict()}, ckpt_path)
-            logger.success(f"New best model saved → {ckpt_path}")
+            torch.save({
+                "model_state_dict": model.state_dict(),
+                "optimizer_state_dict": optimizer.state_dict(),
+                "scheduler_state_dict": scheduler.state_dict(),
+                "config": cfg,  # ← CRITICAL: Save config!
+                "epoch": epoch,
+                "train_loss": tr_loss,
+                "val_loss": val_loss,
+                "best_val": best_val,
+                "hyperparams": {
+                    "lr": lr,
+                    "weight_decay": weight_decay,
+                    "batch_size": batch_size,
+                    "huber_delta": huber_delta,
+                    "max_grad_norm": max_grad_norm,
+                }
+            }, ckpt_path)
+            
+            logger.success(f"✓ New best model saved → {ckpt_path} (epoch {epoch})")
         else:
             wait += 1
             if wait >= patience:
-                logger.warning("Early stopping triggered")
+                logger.warning(f"Early stopping triggered at epoch {epoch}")
                 break
+
+    logger.info("=" * 70)
+    logger.success(f"Training completed!")
+    logger.success(f"Best epoch: {best_epoch} | Best val loss: {best_val:.4f}")
+    logger.info("=" * 70)
 
     # ============================================================
     # SAVE LOSS CSV + PLOT
@@ -239,23 +274,24 @@ def train_fusion(
     csv_path = out_dir / "training_losses_fusion.csv"
     df_loss.to_csv(csv_path, index=False)
 
-    plt.figure(figsize=(8, 5))
-    plt.plot(df_loss["epoch"], df_loss["train_loss"], label="Train")
-    plt.plot(df_loss["epoch"], df_loss["val_loss"], label="Validation")
-    plt.xlabel("Epoch")
-    plt.ylabel("Loss")
-    plt.title("Training & Validation Loss – Fusion Model")
-    plt.legend()
+    plt.figure(figsize=(10, 6))
+    plt.plot(df_loss["epoch"], df_loss["train_loss"], label="Train", linewidth=2)
+    plt.plot(df_loss["epoch"], df_loss["val_loss"], label="Validation", linewidth=2)
+    plt.axvline(x=best_epoch, color='r', linestyle='--', alpha=0.7, label=f'Best (epoch {best_epoch})')
+    plt.xlabel("Epoch", fontsize=12)
+    plt.ylabel("Loss", fontsize=12)
+    plt.title("Training & Validation Loss – Fusion Model", fontsize=14)
+    plt.legend(fontsize=10)
     plt.grid(alpha=0.3)
     plt.tight_layout()
 
     fig_path = out_dir / "training_loss_curve_fusion.png"
-    plt.savefig(fig_path, dpi=150)
+    plt.savefig(fig_path, dpi=150, bbox_inches='tight')
     plt.close()
 
     logger.success(f"Loss CSV saved → {csv_path}")
     logger.success(f"Loss plot saved → {fig_path}")
-    logger.success("Training finished.")
+    logger.success(f"Checkpoint saved → {ckpt_path}")
 
 
 if __name__ == "__main__":

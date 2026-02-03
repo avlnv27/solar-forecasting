@@ -46,12 +46,17 @@ class GraphAttentionPooling(nn.Module):
 
 
 # ============================================================
-# FUSION MODEL
+# FUSION MODEL (FIXED)
 # ============================================================
 
 class FusionModel(nn.Module):
     """
     Satellite + Ground fusion model.
+
+    IMPROVEMENTS:
+    - Batched timestep processing (much faster!)
+    - Proper config parameter handling
+    - Better activation function selection
 
     Satellite branch:
         CNN (spatial) → GRU (temporal) → Temporal Attention
@@ -94,7 +99,7 @@ class FusionModel(nn.Module):
                 dropout=0.2 if cfg_sat.get("temporal_layers", 2) > 1 else 0.0,
             )
 
-            # 🔴 TEMPORAL ATTENTION (paper-style)
+            # TEMPORAL ATTENTION (paper-style)
             self.sat_temporal_attn = TemporalAttention(
                 d_in=cfg_sat["feature_dim"],
                 d_att=cfg_sat.get("attn_dim", 32),
@@ -134,28 +139,32 @@ class FusionModel(nn.Module):
         )
 
         # ====================================================
-        # FUSION MLP (paper-inspired)
+        # FUSION MLP (paper-inspired) - FIXED CONFIG HANDLING
         # ====================================================
 
         d_sat = cfg_sat["feature_dim"]
         d_gnn = cfg_ground["output_size"]
         fusion_input_dim = d_sat + d_gnn
 
-        x1 = cfg_fusion.get("x1", 64)
-        x2 = cfg_fusion.get("x2", 32)
-        x3 = cfg_fusion.get("x3", 16)
+        # FIXED: Support both old and new config formats
+        x1 = cfg_fusion.get("x1", cfg_fusion.get("hidden_dim", 64))
+        x2 = cfg_fusion.get("x2", cfg_fusion.get("hidden_dim2", 32))
+        x3 = cfg_fusion.get("x3", cfg_fusion.get("hidden_dim3", 16))
 
-        act_map = {
-            "relu": nn.ReLU(),
-            "gelu": nn.GELU(),
-            "selu": nn.SELU(),
-            "elu": nn.ELU(),
-            "tanh": nn.Tanh(),
-        }
+        # FIXED: Better activation function handling
+        def get_activation(name: str) -> nn.Module:
+            activations = {
+                "relu": nn.ReLU,
+                "gelu": nn.GELU,
+                "selu": nn.SELU,
+                "elu": nn.ELU,
+                "tanh": nn.Tanh,
+            }
+            return activations.get(name, nn.ReLU)()
 
-        act1 = act_map.get(cfg_fusion.get("activation1", "relu"))
-        act2 = act_map.get(cfg_fusion.get("activation2", "gelu"))
-        act3 = act_map.get(cfg_fusion.get("activation3", "relu"))
+        act1 = get_activation(cfg_fusion.get("activation1", "relu"))
+        act2 = get_activation(cfg_fusion.get("activation2", "gelu"))
+        act3 = get_activation(cfg_fusion.get("activation3", "relu"))
 
         dropout_p = cfg_fusion.get("dropout", 0.3)
 
@@ -177,7 +186,7 @@ class FusionModel(nn.Module):
         self.A_ground = A_ground
 
     # ====================================================
-    # FORWARD
+    # FORWARD - FIXED: BATCHED PROCESSING
     # ====================================================
 
     def forward(self, x_sat, x_ground, edge_index=None, edge_weight=None):
@@ -190,15 +199,13 @@ class FusionModel(nn.Module):
         if self.use_sat_temporal:
             B, T, H, W = x_sat.shape
 
-            sat_feats = []
-            for t in range(T):
-                img_t = x_sat[:, t:t+1, :, :]
-                feat_t = self.sat_spatial_encoder(img_t)
-                sat_feats.append(feat_t)
+            # FIXED: Batch process all timesteps at once (MUCH FASTER!)
+            x_sat_flat = x_sat.reshape(B * T, 1, H, W)  # Merge batch and time
+            sat_feats_flat = self.sat_spatial_encoder(x_sat_flat)  # (B*T, D)
+            sat_feats = sat_feats_flat.reshape(B, T, -1)  # (B, T, D)
 
-            sat_feats = torch.stack(sat_feats, dim=1)  # (B, T, D)
-
-            sat_feats, _ = self.sat_temporal_encoder(sat_feats)
+            # Temporal encoding
+            sat_feats, _ = self.sat_temporal_encoder(sat_feats)  # (B, T, D)
 
             # ATTENTION instead of last timestep
             sat_feat = self.sat_temporal_attn(sat_feats)  # (B, D)

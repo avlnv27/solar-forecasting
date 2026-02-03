@@ -1,0 +1,63 @@
+batch_size: 64
+data:
+  ground_value_col: irradiance_csi
+  sat_time_col: time
+  sat_value_col: irradiance_csi
+  target_station: PUY
+date_range:
+  end: '2023-12-31 23:59:59'
+  start: '2023-01-01 00:00:00'
+frequency: 10min
+future_timesteps: 6
+model:
+  fusion:
+    dropout: 0.10261897441034194
+    hidden_dim: 32
+    hidden_dim2: 16
+    name: FusionModel
+  ground:
+    activation: gelu
+    add_backward: false
+    add_embedding_before: []
+    cached: false
+    coords:
+    - - 46.0
+      - 6.9
+    - - 46.1
+      - 6.85
+    - - 46.15
+      - 6.95
+    - - 46.05
+      - 6.8
+    - - 46.2
+      - 6.88
+    - - 46.12
+      - 6.83
+    emb_size: 0
+    exog_size: 0
+    graph_layers: 2
+    hidden_size: 16
+    input_size: 1
+    knn: 5
+    name: TimeThenGraphIsoModel
+    nodes: 24
+    noise_mode: lin
+    norm: sym
+    output_size: 16
+    root_weight: true
+    sigma: 20
+    time_layers: 1
+    time_skip_connect: false
+    use_local_weights: null
+  satellite:
+    conv1_channels: 16
+    conv2_channels: 32
+    feature_dim: 64
+    head_hidden_dim: 16
+    input_channels: 1
+    kernel_size: 3
+    name: SatelliteCNN
+    pool_size: 2
+    temporal_layers: 2
+    use_temporal_encoder: true
+past_timesteps: 18
