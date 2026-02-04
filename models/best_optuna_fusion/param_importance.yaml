@@ -1,0 +1,93 @@
+batch_size: !!python/object/apply:numpy.core.multiarray.scalar
+- &id001 !!python/object/apply:numpy.dtype
+  args:
+  - f8
+  - false
+  - true
+  state: !!python/tuple
+  - 3
+  - <
+  - null
+  - null
+  - null
+  - -1
+  - -1
+  - 0
+- !!binary |
+  QzFlwBlZrz8=
+fusion_dropout: !!python/object/apply:numpy.core.multiarray.scalar
+- *id001
+- !!binary |
+  tGFT3DkCmz8=
+fusion_x1: !!python/object/apply:numpy.core.multiarray.scalar
+- *id001
+- !!binary |
+  m3JtQyGUrz8=
+fusion_x2: !!python/object/apply:numpy.core.multiarray.scalar
+- *id001
+- !!binary |
+  WvL0F8e3rz8=
+fusion_x3: !!python/object/apply:numpy.core.multiarray.scalar
+- *id001
+- !!binary |
+  f1uagi6olz8=
+ground_activation: !!python/object/apply:numpy.core.multiarray.scalar
+- *id001
+- !!binary |
+  ttV1gPVAhT8=
+ground_graph_layers: !!python/object/apply:numpy.core.multiarray.scalar
+- *id001
+- !!binary |
+  TRcameOmqz8=
+ground_hidden_size: !!python/object/apply:numpy.core.multiarray.scalar
+- *id001
+- !!binary |
+  lME+9tPLij8=
+ground_time_layers: !!python/object/apply:numpy.core.multiarray.scalar
+- *id001
+- !!binary |
+  evhPxmkkYT8=
+huber_delta: !!python/object/apply:numpy.core.multiarray.scalar
+- *id001
+- !!binary |
+  XFPRFyYd3j8=
+lr: !!python/object/apply:numpy.core.multiarray.scalar
+- *id001
+- !!binary |
+  EkfWr/Qjtz8=
+lr_factor: !!python/object/apply:numpy.core.multiarray.scalar
+- *id001
+- !!binary |
+  AL8rh+Rmez8=
+lr_patience: !!python/object/apply:numpy.core.multiarray.scalar
+- *id001
+- !!binary |
+  rKRZYZJqjz8=
+max_grad_norm: !!python/object/apply:numpy.core.multiarray.scalar
+- *id001
+- !!binary |
+  vTWZznM+jj8=
+sat_conv1_channels: !!python/object/apply:numpy.core.multiarray.scalar
+- *id001
+- !!binary |
+  2HDPEkWbjz8=
+sat_conv2_channels: !!python/object/apply:numpy.core.multiarray.scalar
+- *id001
+- !!binary |
+  FYHsrCMzlT8=
+sat_feature_dim: !!python/object/apply:numpy.core.multiarray.scalar
+- *id001
+- !!binary |
+  hJ2RA/jjMD8=
+sat_head_hidden_dim: !!python/object/apply:numpy.core.multiarray.scalar
+- *id001
+- !!binary |
+  W+rnDFWvpD8=
+sat_temporal_layers: !!python/object/apply:numpy.core.multiarray.scalar
+- *id001
+- !!binary |
+  N8/HRFTAdj8=
+weight_decay: !!python/object/apply:numpy.core.multiarray.scalar
+- *id001
+- !!binary |
+  BZdOLlK9eD8=

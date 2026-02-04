@@ -4,7 +4,7 @@ UPDATED: Prediction script that loads models from models/best_optuna_*/ director
 This works with the retrained models from Optuna.
 
 Run:
-python -m solar_forecast.predict_randomday
+python -m solar_forecast.predict
 """
 
 from __future__ import annotations
@@ -42,6 +42,7 @@ CKPT_PATHS = {
     "satellite_only": MODELS_DIR / "best_optuna_satellite" / "best_model.pt",
     "ground_only":    MODELS_DIR / "best_optuna_ground" / "best_model.pt",
     "fusion":         MODELS_DIR / "best_optuna_fusion" / "best_model.pt",
+    # "fusion":         PROCESSED_DATA_DIR / "checkpoints" / "best_model.pt",
 }
 
 RANDOM_SEED = 42

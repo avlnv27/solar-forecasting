@@ -39,16 +39,16 @@ model:
     time_skip_connect: false
     use_local_weights: null
   satellite:
-    attn_dim: 32
-    conv1_channels: 16
-    conv2_channels: 64
-    feature_dim: 128
-    head_hidden_dim: 32
+    attn_dim: 16
+    conv1_channels: 64
+    conv2_channels: 32
+    feature_dim: 32
+    head_hidden_dim: 16
     input_channels: 1
     kernel_size: 3
     name: SatelliteCNN
     pool_size: 2
-    temporal_layers: 3
-    use_attention: false
+    temporal_layers: 1
+    use_attention: true
     use_temporal_encoder: true
 past_timesteps: 18

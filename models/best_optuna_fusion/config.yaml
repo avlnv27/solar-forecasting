@@ -14,19 +14,19 @@ model:
     activation1: relu
     activation2: gelu
     activation3: relu
-    dropout: 0.14881529393791154
+    dropout: 0.2868069344183677
     name: FusionModel
-    x1: 128
-    x2: 16
-    x3: 16
+    x1: 32
+    x2: 32
+    x3: 32
   ground:
-    activation: selu
+    activation: relu
     add_backward: false
     add_embedding_before: []
     cached: false
     emb_size: 0
     exog_size: 0
-    graph_layers: 3
+    graph_layers: 1
     hidden_size: 64
     input_size: 1
     name: TimeThenGraphIsoModel
@@ -35,15 +35,15 @@ model:
     norm: none
     output_size: 64
     root_weight: true
-    time_layers: 1
+    time_layers: 2
     time_skip_connect: false
     use_local_weights: null
   satellite:
     attn_dim: 32
-    conv1_channels: 64
-    conv2_channels: 32
-    feature_dim: 128
-    head_hidden_dim: 64
+    conv1_channels: 32
+    conv2_channels: 128
+    feature_dim: 32
+    head_hidden_dim: 32
     input_channels: 1
     kernel_size: 3
     name: SatelliteCNN

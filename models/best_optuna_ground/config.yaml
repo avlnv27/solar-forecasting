@@ -20,23 +20,23 @@ model:
     x2: 32
     x3: 16
   ground:
-    activation: gelu
+    activation: selu
     add_backward: false
     add_embedding_before: []
     cached: false
     emb_size: 0
     exog_size: 0
-    graph_layers: 1
-    hidden_size: 64
+    graph_layers: 3
+    hidden_size: 128
     input_size: 1
     name: TimeThenGraphIsoModel
     nodes: 6
     noise_mode: lin
     norm: none
-    output_size: 64
+    output_size: 128
     root_weight: true
-    time_layers: 1
-    time_skip_connect: false
+    time_layers: 3
+    time_skip_connect: true
     use_local_weights: null
   satellite:
     attn_dim: 32

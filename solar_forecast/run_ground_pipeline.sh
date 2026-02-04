@@ -214,7 +214,7 @@ run_all() {
         exit 0
     fi
     
-    # run_optuna
+    run_optuna
     run_retrain
     run_predict
     

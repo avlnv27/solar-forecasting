@@ -127,9 +127,9 @@ def create_objective(
         lr_factor = trial.suggest_float("lr_factor", 0.3, 0.7)
 
         # Ground Model
-        ground_hidden = trial.suggest_categorical("ground_hidden_size", [16, 32, 64])
-        ground_graph_layers = trial.suggest_int("ground_graph_layers", 1, 3)
-        ground_time_layers = trial.suggest_int("ground_time_layers", 1, 2)
+        ground_hidden = trial.suggest_categorical("ground_hidden_size", [16, 32, 64, 128])
+        ground_graph_layers = trial.suggest_int("ground_graph_layers", 1, 4)
+        ground_time_layers = trial.suggest_int("ground_time_layers", 1, 3)
         ground_activation = trial.suggest_categorical(
             "ground_activation", ["relu", "elu", "gelu", "selu"]
         )
@@ -139,7 +139,7 @@ def create_objective(
         sat_temporal_layers = trial.suggest_int("sat_temporal_layers", 1, 3)
         sat_conv1_channels = trial.suggest_categorical("sat_conv1_channels", [16, 32, 64])
         sat_conv2_channels = trial.suggest_categorical("sat_conv2_channels", [32, 64, 128])
-        sat_head_hidden = trial.suggest_categorical("sat_head_hidden_dim", [16, 32, 64])
+        # sat_head_hidden = trial.suggest_categorical("sat_head_hidden_dim", [16, 32, 64])
 
         # Fusion Model
         fusion_x1 = trial.suggest_categorical("fusion_x1", [32, 64, 128])
